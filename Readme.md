@@ -1,4 +1,4 @@
-#TRAVIS - TRAnscriptome VIrus Scanner
+# TRAVIS - TRAnscriptome VIrus Scanner
 
 It's awesome for the exploration of viral diversity in transcriptomic data. 
 Wooohoooo
