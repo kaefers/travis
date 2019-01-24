@@ -7,9 +7,9 @@ Wooohoooo
 
 copy via 
 
-...
+```
 git clone dingens
-...
+```
 
 install requirered programs
 
