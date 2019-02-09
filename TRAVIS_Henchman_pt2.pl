@@ -241,4 +241,11 @@ sub read_TCC{
 	close $TCC_FH;
 }
 
-
+sub  slurp_file{
+	my $sref_file = $_[0];
+	my $sref_container = $_[1];
+	open (my $FILE, '<', $$sref_file) or print "could not read from '$$sref_file': $!\n";
+	while (my $line = <$FILE>){
+		$$sref_container  .= $line;
+	} 
+}

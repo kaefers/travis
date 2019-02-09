@@ -1,19 +1,19 @@
 database_name,reo_test
-sample_dir,/home/simon/travis_test/assemblies/
-ORF_dir,/home/simon/travis_test/assemblies/ORF_data/
+sample_dir,/home/simon/travis/test_data/testfastas/
+ORF_dir,/home/simon/travis/test_data/testfastas/ORF_data/
 min_ORF_length,50
 max_ORF_length,3000
-sample_library,/home/simon/travis_test/reo_test_sample_library.csv
+sample_library,/home/simon/travis/test_data/reo_test_sample_library.csv
 
-reference_library,/home/simon/travis_test/reo_test_reference_library.csv
+reference_library,/home/simon/travis/test_data/reo_test_reference_library.csv
 header_names,Name&Genus
-local_reference_database,/home/simon/travis_test/references/reo_test_local_reference_database.csv
-reference_fastas,/home/simon/travis_test/references/
-reference_gbx,/home/simon/travis_test/genebank/
+local_reference_database,/home/simon/travis/test_data/references/reo_test_local_reference_database.csv
+reference_fastas,/home/simon/travis/test_data/references/
+reference_gbx,/home/simon/travis/test_data/genebank/
 sample_subset,main_positive
 split_references,Genus&Subfamily
-result_dir,/home/simon/travis_test/results/
-TTT,/home/simon/travis_test/reo_test_TTT.csv
+result_dir,/home/simon/travis/test_data/results/
+TTT,/home/simon/travis/test_data/reo_test_TTT.csv
 
 nCPU,2
 
