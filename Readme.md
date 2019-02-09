@@ -68,10 +68,16 @@ are good to go. You can specify the paths in the configuration file. However, if
 you have the programs installed and working with shortcuts/aliases, you can also use
 these. A combination of HMMER3 (v. 3.1b2), BLAST+ (v. 2.6.0) , MMseqs2 (v.
 5437c6334d659119089cd8758a63838c29753048) and MAFFT (v. 7.302) worked well on
-Ubuntu 16.04 LTS but i guess, other versions won’t make problems as long the respective
+Ubuntu 16.04 and 18.04 but i guess, other versions won’t make problems as long the respective
 developers do not change their parameter calls or output format.
 
-### Dependencies
+On Ubuntu 18.04, installation of TRAVIS works as follows:
+```
+sudo apt install git curl
+git clone https://github.com/kaefers/travis
+```
+
+
 Please use the respective documentation of the dependencies for installation.
 * [BLAST+](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download)
 * [HMMER3](http://hmmer.org/)
