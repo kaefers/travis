@@ -84,15 +84,28 @@ Please use the respective documentation of the dependencies for installation.
 * [MMSeqs2](https://github.com/soedinglab/MMseqs2)
 * [MAFFT](https://mafft.cbrc.jp/alignment/software/linux.html)
 
+You need a local copy of the non-redundant protein database for BLAST. 
+There is a nice little tool for that provided by NCBI: [update_blastdb.pl] (https://www.ncbi.nlm.nih.gov/IEB/ToolBox/CPP_DOC/lxr/source/src/app/blast/update_blastdb.pl)
 
+### Tutorial
 
-### Prerequisites
-
-What things you need to install the software and how to install them
+Here, i will walk you through running TRAVIS on the test data that is contained within the package.
+We will start from the main directory, where you downloaded TRAVIS, which is /home/simon/travis/ for me.
 
 ```
-Give examples
+cd /home/simon/travis/test_data/
+unzip testfastas.zip
 ```
+
+Then edit the 'reo_test_TCC.csv' to match your system, settings and paths. 
+I have been using pre-compiled versions of the dependencies and specified the
+absoulte path to them. This seemed to work well on all occasions so far.
+
+```
+cd ..
+perl TRAVIS_Henchman_pt1 test_data/reo_test_TCC.csv
+```
+
 
 ### Installing
 
