@@ -35,7 +35,7 @@ minimal_cluster_size,2
 blastp,/home/simon/travis_programs/ncbi-blast-2.6.0+/bin/blastp
 blastp_settings,-evalue 1.00E-6 -max_target_seqs 10
 makeblastdb,/home/simon/travis_programs/ncbi-blast-2.6.0+/bin/makeblastdb
-blastp_db,/home/simon/tmp/blast_DBs/nr
+blastp_db,/share/databases/blast/nr
 
 
 
