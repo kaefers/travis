@@ -1,0 +1,4 @@
+filename,assembly_ID,order,family,genus_species
+Testfasta_20mp.fasta,Test_20mp,Coleoptera,Gyrinidae,Gyrinus_marinus
+Testfasta_40mp.fasta,Test_40mp,Coleoptera,Gyrinidae,Gyrinus_marinus
+Testfasta_60mp.fasta,Test_60mp,Coleoptera,Gyrinidae,Gyrinus_marinus

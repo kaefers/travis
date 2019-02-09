@@ -1,0 +1,41 @@
+database_name,reo_test
+sample_dir,/home/simon/travis_test/assemblies/
+ORF_dir,/home/simon/travis_test/assemblies/ORF_data/
+min_ORF_length,50
+max_ORF_length,3000
+sample_library,/home/simon/travis_test/reo_test_sample_library.csv
+
+reference_library,/home/simon/travis_test/reo_test_reference_library.csv
+header_names,Name&Genus
+local_reference_database,/home/simon/travis_test/references/reo_test_local_reference_database.csv
+reference_fastas,/home/simon/travis_test/references/
+reference_gbx,/home/simon/travis_test/genebank/
+sample_subset,main_positive
+split_references,Genus&Subfamily
+result_dir,/home/simon/travis_test/results/
+TTT,/home/simon/travis_test/reo_test_TTT.csv
+
+nCPU,2
+
+hmmbuild,/home/simon/travis_programs/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmbuild
+hmmsearch,/home/simon/travis_programs/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmsearch
+hmmsearch_settings,-E 1.00E-6
+jackhmmer,/home/simon/travis_programs/hmmer-3.1b2-linux-intel-x86_64/binaries/jackhmmer
+jackhmmer_settings,-E 1.00E-6
+
+mafft,/home/simon/travis_programs/mafft-7.302-linux/mafft-linux64/mafftdir/bin/mafft
+mafft_settings,--maxiterate 1000 --genafpair --adjustdirection --quiet  --reorder
+mafft_binaries,/home/simon/travis_programs/mafft-7.302-linux/mafft-linux64/mafftdir/libexec
+
+mmseqs,/home/simon/travis_programs/mmseqs2_SSE4/bin/mmseqs
+mmseqs_cluster_settings,-c 0.01 -v 0 --cluster-mode 0 -s 7.5 --mask 0
+mmseqs_search_settings,--max-seqs 10 -e 1.00E-6
+minimal_cluster_size,2
+
+blastp,/home/simon/travis_programs/ncbi-blast-2.6.0+/bin/blastp
+blastp_settings,-evalue 1.00E-6 -max_target_seqs 10
+makeblastdb,/home/simon/travis_programs/ncbi-blast-2.6.0+/bin/makeblastdb
+blastp_db,/home/simon/tmp/blast_DBs/nr
+
+
+
