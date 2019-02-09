@@ -35,7 +35,15 @@ $perl TRAVIS_Scavenger.pl TCC.csv
 However, TRAVIS Henchman creates a manifest file called ’Troubling TRAVIS Table’, where all intended 
 searches for TRAVIS Core are listed. You can adjust
 this table according to your specific needs. This can drastically reduce calculation time. It
-is also possible to manually create a TTT or use an old one and skip TRAVIS Henchman.
+is also possible to manually create a TTT or use an old one and skip TRAVIS Henchman completely.
+Henchman has been split into two parts. The first part downloads and sorts your references, and
+the second part prepares the data for the searches. Depending on your reference library, 
+this can take quite some time and computing resources. 
+As some high performance clusters have ridiculously strict firewalls, you might want to 
+download the references on a standard computer with a proper internet connection and 
+let the cluster do the heavy lifting afterwards. 
+Currently, TRAVIS uses *[curl](https://curl.haxx.se/) to download files from NCBI. If the 
+access is not restricted on your cluster, you should be able to run everyting on it.
 If you have a large dataset, you can run TRAVIS Scavenger on the same TCC while
 TRAVIS Core is still running in order to get the results that have already been generated.
 Because TRAVIS runs all intended searches completely for each sample and logs the results,
@@ -45,7 +53,7 @@ These output files will be fastas, tables (CSV) and visualizations of (SVG) the 
 I recommend to open the SVGs in a web-browser because detailed information about the
 matches will be displayed when you hover your cursor over certain elements. This has
 been tested with Mozilla Firefox and Google Chrome under Windows 10 and Ubuntu 16.04.
-These details can also be found in the corresponding CSV
+These details can also be found in the corresponding CSV.
 
 
 
