@@ -42,7 +42,7 @@ this can take quite some time and computing resources.
 As some high performance clusters have ridiculously strict firewalls, you might want to 
 download the references on a standard computer with a proper internet connection and 
 let the cluster do the heavy lifting afterwards. 
-Currently, TRAVIS uses *[curl](https://curl.haxx.se/) to download files from NCBI. If the 
+Currently, TRAVIS uses [curl](https://curl.haxx.se/) to download files from NCBI. If the 
 access is not restricted on your cluster, you should be able to run everyting on it.
 If you have a large dataset, you can run TRAVIS Scavenger on the same TCC while
 TRAVIS Core is still running in order to get the results that have already been generated.
@@ -61,24 +61,23 @@ These details can also be found in the corresponding CSV.
 
 
 
+## Installation
+TRAVIS is written in perl and should work out of the box on most UNIX systems.
+If you have compiled versions of HMMER3, BLAST+, MMSeqs2 and MAFFT, you
+are good to go. You can specify the paths in the configuration file. However, if
+you have the programs installed and working with shortcuts/aliases, you can also use
+these. A combination of HMMER3 (v. 3.1b2), BLAST+ (v. 2.6.0) , MMseqs2 (v.
+5437c6334d659119089cd8758a63838c29753048) and MAFFT (v. 7.302) worked well on
+Ubuntu 16.04 LTS but i guess, other versions won’t make problems as long the respective
+developers do not change their parameter calls or output format.
 
-
-
-copy via 
-
-```
-git clone dingens
-```
-
-install requirered programs
-
-[//]: #* [HMMer3](http://www.dropwizard.io/1.0.2/docs/) - hammer time!
+### Dependencies
+Please use the respective documentation of the dependencies for installation.
 * [BLAST+](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download)
 * [HMMER3](http://hmmer.org/)
 * [MMSeqs2](https://github.com/soedinglab/MMseqs2)
 * [MAFFT](https://mafft.cbrc.jp/alignment/software/linux.html)
 
-or download package from url: blalbalba.dings.com/file5213789
 
 
 ### Prerequisites
