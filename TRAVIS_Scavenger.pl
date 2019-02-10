@@ -53,7 +53,7 @@ my %TCC; #contains configuration parameters from $TCC_file
 print "connected to TRAVIS Control Center\n";
 &check_dir(\$TCC{'reference_gbx'}); #genebank xmls will be stored here locally
 unless ($TCC{'max_references'}){
-	$TCC{'max_references'} = 10;
+	$TCC{'max_references'} = 100;
 }
 
 my $sample_library =$TCC{'sample_library'};
