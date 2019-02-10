@@ -436,53 +436,55 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 			close ($CRT_SUSPICIOUS);
 			close ($CRT_SUSPICIOUS_NT);
 			###blasting all sample sequences vs the whole nr database
-			print "blasting suspicious ORFs from $crt_sample_ID vs $TCC{'blastp_db'}...\n";
-			my $t1  = time();
-			unless ( $TCC{'only_evaluate'}){
-				if ($TCC{'blastp_db'} =~ m/-remote/){
-					#system(qq($TCC{'blastp'} -query $crt_sample_suspicious_fasta -out $crt_sample_suspicious_blasted $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$crt_sample_suspicious_fasta': $!\n";
-					print "running remote blast!\n";
-					if (-s $crt_sample_suspicious_blasted) {
-						system (qq(rm $crt_sample_suspicious_blasted));
-					}
-					my %crt_suspicious;
-					&fasta_2_hash(\$crt_sample_suspicious_fasta,\%crt_suspicious);
-					for my $seq (keys %crt_suspicious){		
-						my $crt_content = "$seq\n$crt_suspicious{$seq}\n";
-						my $crt_fasta = 'tmp.fasta';
-						my $crt_out = 'tmp_blasted.csv';
-						&write_file(\$crt_fasta, \$crt_content);
-						system(qq($TCC{'blastp'} -query $crt_fasta -out $crt_out $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\"));
-						if (-s $crt_out){
-							system(qq(cat $crt_out >> $crt_sample_suspicious_blasted));
-							system (qq(rm $crt_out));
+			if ($TCC{'blastp_db'} !~ m/skip/){
+				print "blasting suspicious ORFs from $crt_sample_ID vs $TCC{'blastp_db'}...\n";
+				my $t1  = time();
+				unless ( $TCC{'only_evaluate'}){
+					if ($TCC{'blastp_db'} =~ m/-remote/){
+						#system(qq($TCC{'blastp'} -query $crt_sample_suspicious_fasta -out $crt_sample_suspicious_blasted $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$crt_sample_suspicious_fasta': $!\n";
+						print "running remote blast!\n";
+						if (-s $crt_sample_suspicious_blasted) {
+							system (qq(rm $crt_sample_suspicious_blasted));
 						}
-						system (qq(rm $crt_fasta));
+						my %crt_suspicious;
+						&fasta_2_hash(\$crt_sample_suspicious_fasta,\%crt_suspicious);
+						for my $seq (keys %crt_suspicious){		
+							my $crt_content = "$seq\n$crt_suspicious{$seq}\n";
+							my $crt_fasta = 'tmp.fasta';
+							my $crt_out = 'tmp_blasted.csv';
+							&write_file(\$crt_fasta, \$crt_content);
+							system(qq($TCC{'blastp'} -query $crt_fasta -out $crt_out $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\"));
+							if (-s $crt_out){
+								system(qq(cat $crt_out >> $crt_sample_suspicious_blasted));
+								system (qq(rm $crt_out));
+							}
+							system (qq(rm $crt_fasta));
+						}
+					} else {	
+					system(qq($TCC{'blastp'} -query $crt_sample_suspicious_fasta -out $crt_sample_suspicious_blasted $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$crt_sample_suspicious_fasta': $!\n";
 					}
-				} else {	
-				system(qq($TCC{'blastp'} -query $crt_sample_suspicious_fasta -out $crt_sample_suspicious_blasted $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$crt_sample_suspicious_fasta': $!\n";
 				}
-			}
 			
-			my $t2  = time();
-			my $tdiff = $t2 - $t1;
-			my $hitcounter;
-			print "reading BLAST output '$crt_sample_suspicious_blasted'...\n";
-			open (my $BLAST_OUT, '<', $crt_sample_suspicious_blasted) or die "could not read from '$crt_sample_suspicious_blasted': $!\n";
-			while (my $line = <$BLAST_OUT>){
-				chomp $line;
-				next if ($line =~ m/^#/);
-				next if ($line =~ m/^$/);
-				my @cols = split (',', $line);
-				$cols[-1] =~ s/\.\d\s*$//; #get rid of version number
-				$hitcounter++;
-				print $ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[-1],nr,$tdiff,blastp_vs_nr,$cols[-4],$cols[-3],$cols[-2]\n";
-			}
-			if ($hitcounter){
-				print "\t\tfound $hitcounter hit(s)!\n";
-			} else {
-				print "\t\tno hits found\n";
-				print $ORF_RESULTS "$crt_sample_ID,NA,NA,nr,$tdiff,blastp_vs_nr,NA,NA,NA\n";
+				my $t2  = time();
+				my $tdiff = $t2 - $t1;
+				my $hitcounter;
+				print "reading BLAST output '$crt_sample_suspicious_blasted'...\n";
+				open (my $BLAST_OUT, '<', $crt_sample_suspicious_blasted) or die "could not read from '$crt_sample_suspicious_blasted': $!\n";
+				while (my $line = <$BLAST_OUT>){
+					chomp $line;
+					next if ($line =~ m/^#/);
+					next if ($line =~ m/^$/);
+					my @cols = split (',', $line);
+					$cols[-1] =~ s/\.\d\s*$//; #get rid of version number
+					$hitcounter++;
+					print $ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[-1],nr,$tdiff,blastp_vs_nr,$cols[-4],$cols[-3],$cols[-2]\n";
+				}
+				if ($hitcounter){
+					print "\t\tfound $hitcounter hit(s)!\n";
+				} else {
+					print "\t\tno hits found\n";
+					print $ORF_RESULTS "$crt_sample_ID,NA,NA,nr,$tdiff,blastp_vs_nr,NA,NA,NA\n";
+				}
 			}
 	} else {
 		print "no suspicious sequences in sample!\n";
