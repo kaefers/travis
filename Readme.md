@@ -110,6 +110,9 @@ perl update_blastdb.pl --decompress nr
 ```
 This will take a while and use about 200GB of hard drive space.
 
+However, you can specify the '-remote' option in the BLAST call and setting  'blast_db' to 'nr'. This will run the searches on NCBI's servers. But this can take considerably more time
+as sequences will be submitted individually to not cause crashes by exceeding the CPU/time limits.
+If you think you can afford skipping this step, you can skip it completely by setting the 'blast_db' parameter in TCC to 'skip'.
 
 
 
@@ -175,6 +178,7 @@ Specifies the path to where the ORF data should be stored.
 
 #### ORF lengths limits
 Sets limits to the ORFs to be extracted in number of amino acids.
+I suggest to not use anything below 20 AA.
 
 ```
 min_ORF_length
@@ -282,6 +286,9 @@ minimal_cluster_size
 
 #### BLASTP
 Specifies paths and settings of BLASTP.
+The 'blast_db' parameter expects the path to your local non-redundant protein database. Or the remote one which can be called
+with 'nr'. Skipping this step can be achieved with using 'skip'. If you want to cheat with another database, you can use this here, too. 
+It just needs to be a blast database that has been created with makeblastdb.
 
 ```
 blastp
