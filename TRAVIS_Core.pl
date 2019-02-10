@@ -1,8 +1,6 @@
 #!/usr/bin/env perl
 use warnings;
 use strict;
-use LWP::Simple;
-use autodie;
 use File::Path qw(make_path);	
 use File::Basename;
 use File::Spec;
