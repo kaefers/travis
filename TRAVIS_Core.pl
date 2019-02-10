@@ -497,7 +497,7 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 }
 	
 	
-print "TRAVIS Core finished successfully!\n";	
+print "TRAVIS Core completed!\n";	
 	
 
 ###subroutines

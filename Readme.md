@@ -102,11 +102,16 @@ Please use the respective documentation of the dependencies for installation.
 
 You need a local copy of the non-redundant protein database for BLAST. 
 There is a nice little tool for that provided by NCBI: [update_blastdb.pl](https://www.ncbi.nlm.nih.gov/IEB/ToolBox/CPP_DOC/lxr/source/src/app/blast/update_blastdb.pl).
-It will take a while but you can just use it with
+
 
 ```
 perl update_blastdb.pl --decompress nr
+
 ```
+This will take a while and use about 200GB of hard drive space.
+
+
+
 
 ## Tutorial
 
@@ -141,6 +146,7 @@ You can e.g.:
 * check and modify alignments that are the basis for hmmsearch
 * change combination of search tools on certain groups/clusters
 * add other proteins/groups/clusters to the ’main’ pool
+
 
 
 

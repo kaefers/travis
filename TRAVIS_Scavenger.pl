@@ -1,6 +1,8 @@
 #!/usr/bin/env perl
 use warnings;
 use strict;
+
+use autodie;
 use File::Path qw(make_path);	
 use File::Basename;
 use File::Spec;
@@ -15,14 +17,11 @@ my $TCC_file = shift @ARGV;
 
 print '#' x 70,"\n";
 print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Scavenger v20190209\n";
+print "\t\t\tThis is TRAVIS Scavenger  v20190210\n";
 print '#' x 70,"\n";
 print '#' x 70,"\n";
 print "\n";
-
-#~ my $TCC_file = '/home/skaefer/sync/work/reoviridae/reo_full/reo_full_TCC.csv';
-#~ my $TCC_file = '/home/skaefer/sync/work/reoviridae/reo_mini_test/reo_mini_test_TCC.csv';
-my $partially ; #give a value if you want to run only the first entries of each file
+my $partially = 1; #give a value if you want to run only the first entries of each file
 
 
 ###from http://lsrtools.1apps.com/wavetorgb/index.asp 
@@ -53,7 +52,9 @@ my %TCC; #contains configuration parameters from $TCC_file
 );
 print "connected to TRAVIS Control Center\n";
 &check_dir(\$TCC{'reference_gbx'}); #genebank xmls will be stored here locally
-
+unless ($TCC{'max_references'}){
+	$TCC{'max_references'} = 10;
+}
 
 my $sample_library =$TCC{'sample_library'};
 
@@ -156,7 +157,8 @@ my %nr_matches_counter;
 my $entrycounter;
 while (my $line = <$ORF_RESULTS>){
 	chomp $line;
-	#~ next if ($line =~ m/^#/);
+	next if ($line =~ m/^#/);
+	next if ($line !~ m/virus_sequence_Rotavirus_A__segment_8_40pm/);
 	
 	# last if ($entrycounter >= 30);
 	my @cols = split (',', $line);
@@ -170,8 +172,10 @@ while (my $line = <$ORF_RESULTS>){
 			$entrycounter++;
 			$nr_matches_counter{$cols[1]}++;
 			next if ($nr_matches_counter{$cols[1]} > $TCC{'max_references'} );
+			#~ print "referencing nr : $line\n";
 		} else {
 			next if ($TCC{'reference_library'} eq 'blind');
+			#~ print "referencing $cols[3] : $line\n";
 			$reflib_matches_counter{$cols[1]}{$cols[3]}++;
 			next if ($reflib_matches_counter{$cols[1]}{$cols[3]} > $TCC{'max_references'} );
 		}
@@ -179,7 +183,7 @@ while (my $line = <$ORF_RESULTS>){
 		
 		if ($cols[2] =~ m/acc\|/){
 			my @acc_entries = split ('\|', $cols[2]);
-			die "fuck $cols[2] if\n" if !(@acc_entries);
+			#~ die "screw $cols[2] if\n" if !(@acc_entries);
 			$cols[2] = $acc_entries[2];
 			$cols[2] =~ s/\.\d$//;
 			$cols[2] .= '__NA';
@@ -197,6 +201,8 @@ while (my $line = <$ORF_RESULTS>){
 		push (@infected, $cols[0]) unless ($cols[0] ~~@infected);
 	}
 }
+
+
 
 my $infected_counter;
 
@@ -281,7 +287,7 @@ if (@infected){
 			
 			###loop through all ORFs on that NT
 			foreach my $crt_ORF (sort keys %{$ORF_data_by_sequence{$sequence_header}}){
-				print "\t\t\tevaluating $crt_ORF\n";
+				print "\t\t\tcollecting TRAVIS Core results for $crt_ORF\n";
 				###get sequence original header and ORF number
 				$crt_ORF =~ m/(.+)_(ORF_\d+)/;
 				my $crt_ORF_number  = $2;
@@ -391,12 +397,12 @@ if (@infected){
 				}	
 			}
 		}
-	
+
 		#again looping through all the ORFs. now with complete data!
 		my $seqcountdings;
 		foreach my $sequence_header (sort keys %{$suspicious_sequences{$sample_ID}}){
 			print '#' x 70,"\n";
-			print "current sequence basename: $sequence_header\n";
+			print "retrieving related data from NCBI for: $sequence_header\n";
 			$seqcountdings++;
 			#~ last if ($seqcountdings >= 2);
 			my $NT_length = length ($ORF_data{'>'.$sequence_header});
@@ -437,19 +443,20 @@ if (@infected){
 					#~ }
 					$crt_ORF_found_by_methods = join("\n", sort (@{$found_by{$crt_ORF}}));
 					foreach my $crt_PID (@{$ORF_related_to{$crt_ORF}}){
-						print "\t\tcurrent PID: $crt_PID\n";
+						#~ print "\t\tcurrent PID: $crt_PID\n";
 						my $methods = join(' & ', sort (@{$ORF_relatedness_to_PID_identified_by_method{$crt_PID}{$crt_ORF}}));
 						#~ print "\t\t by methods: $methods\n";
-						print "\t\t  retrieving NCBI data...\n";
+						#~ print "\t\t  retrieving NCBI data...\n";
 						my %crt_PID_entries;
 						my %crt_NT_entries;
 						&fetch_gbx(\$crt_PID,\%crt_PID_entries,\'protein',\$TCC{'reference_gbx'}); #retrieves a genebank entry in xml format for the current PID
 						if ($crt_PID_entries{'main'}{'source-db'}){ #and checks, if it finds a NT accession number as the source/origin of the PID and if there is one, it will
 							my @associated_PIDs;
 							#~ $crt_entries{'main'}{'source-db'} =~ m/([^\s]+)\.*\d*$/;
-							$crt_PID_entries{'main'}{'source-db'} =~ m/([A-Z][A-Z]+_*\d{3}\d*)\.*\d*$/;
+							
 							my $crt_NT_ACC;
-							if ($1) {
+							if ($crt_PID_entries{'main'}{'source-db'} =~ m/([A-Z][A-Z]+_*\d{3}\d*)\.*\d*$/){
+							#~ if ($1) {
 								$crt_NT_ACC = $1;
 								$crt_NT_ACC =~ s/\.\d+\s*$//;
 								
@@ -510,7 +517,7 @@ if (@infected){
 								$ORF_needs_a_rainbow{$sequence_header.'_rainbow_'.$crt_reference_ORF} = $crt_ORF;
 								$reference_ORFs_AA{$crt_reference_ORF} = $crt_PID_entries{'main'}{'sequence'};
 								$start_end_orientation_by_PID{$crt_PID}= '1_'. length($crt_PID_entries{'main'}{'sequence'}) *3 .'_forward';
-								print "\t\t\t  running rainbow on $crt_reference_ORF vs $crt_ORF\n" ;
+								#~ print "\t\t\t  running rainbow on $crt_reference_ORF vs $crt_ORF\n" ;
 								#~ print "\t\t\t\tthat would be:\n\t\t\t\t$crt_ORF: $suspicious_ORFs_AA{$crt_ORF}\n";
 								#~ print "\t\t\t\tvs.\n\t\t\t\t$crt_reference_ORF: $reference_ORFs_AA{$crt_reference_ORF}\n";
 								$sequences{$sample_ID.'|||'.$sequence_header}{$crt_NT_ACC}{'ORF_'.$crt_PID}{$crt_PID.'_'.$crt_PID_entries{'main'}{'definition'}}{$start_end_orientation_by_PID{$crt_PID}} = $crt_PID_entries{'main'}{'definition'}; #generate the plot entry
@@ -561,7 +568,9 @@ if (@infected){
 		
 		
 		$SVG_content .= qq(<text x="100" y="40" font-weight="bold" font-size="2em" >$sample_ID<title>$crt_sample_info\n</title></text>\n); #adding the name of the group to the plot
-		print "creating sequence organization plot for $sample_ID\n";
+		
+		
+		print "######################################################################\ncreating sequence organization plot for $sample_ID\n";
 		foreach my $group (sort keys %sequences){
 			(my $group_leader = $group) =~s/^[^\|]+\|{3}//;
 			my @sequence_order = $group_leader;
@@ -575,7 +584,7 @@ if (@infected){
 			$row_offset += 40; #next group...so we push the stuff further down so that is separated from the previous group
 			my @group_leader_ORFs;
 			foreach my $sequence (@sequence_order){
-				print "\tadding sequence $sequence to plot\n"; 
+				#~ print "\tadding sequence $sequence to plot\n"; 
 				my %plot_rows; #key row number, value is an array containing $start_end_orientation
 				my $rowcount = 2; #we start with 2 rows: 1st row is for the NT sequence (blue) and the 2nd row for the first ORF
 				foreach my $sequence_type (sort keys %{$sequences{$group}{$sequence}}){
@@ -645,7 +654,7 @@ if (@infected){
 							
 							
 							if ( $sequence =~ m/$group_leader/){
-								print "\t\tpushing $sequence\_$sequence_description to group leader ORFs\n";
+								#~ print "\t\tpushing $sequence\_$sequence_description to group leader ORFs\n";
 								if ($ORF_needs_a_rainbow{$sequence.'_'.$sequence_description}){
 									$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:black"></rect>\n);
 									#~ print "\t\tit will become the base for a rainbow!\n";
@@ -732,7 +741,7 @@ if (@infected){
 									print $SEQUENCE_ORGANIZATION_DETAILS_FH "$sample_ID,$sequence,$sequence_description,$mod_seq_annotation\n";
 									}
 							} else {
-								print "#####checking ", $sequence.'_'.$sequence_type, " for rainbow\n";
+								#~ print "#####checking ", $sequence.'_'.$sequence_type, " for rainbow\n";
 								#~ print "reference for: $group_leader.'_rainbow_'.$sequence.'_'.$sequence_type\n";
 								if ($ORF_needs_a_rainbow{$group_leader.'_rainbow_'.$sequence.'_'.$sequence_type}){
 									
@@ -751,9 +760,9 @@ if (@infected){
 										close ($RAINBOW_QRY);
 										#~ print "\t\t\tblasting...\n";
 										#~ system(qq($TCC{'blastp'} -query $crt_sample_suspicious_fasta -out $crt_sample_suspicious_blasted $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen qframe sframe length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$crt_sample_suspicious_fasta': $!\n";
-										system(qq($TCC{'makeblastdb'} -in rainbow_db_tmp.fasta -dbtype prot -out rainbow_db -title rainbow_db )) and die "Fatal: could not build blast database from 'rainbow_db'\: $!\n";
+										system(qq($TCC{'makeblastdb'} -in rainbow_db_tmp.fasta -dbtype prot -out rainbow_db -title rainbow_db > /dev/null )) and die "Fatal: could not build blast database from 'rainbow_db'\: $!\n";
 										#~ system(qq($TCC{'blastp'} -query rainbow_qry.tmp -out rainbow_results.csv -db rainbow_db -evalue $color_sensitivity -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen slen length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for 'rainbow_qry.tmp ': $!\n";
-										system(qq($TCC{'blastp'} -query rainbow_qry_tmp.fasta -out rainbow_results.csv -db rainbow_db -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen slen length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for 'rainbow_qry.tmp ': $!\n";
+										system(qq($TCC{'blastp'} -query rainbow_qry_tmp.fasta -out rainbow_results.csv -db rainbow_db -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen slen length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\" > /dev/null )) and die "Fatal: blast failed for 'rainbow_qry.tmp ': $!\n";
 										
 										if (-s 'rainbow_results_sorted.csv') {
 											system(qq(rm rainbow_results_sorted.csv));
@@ -772,7 +781,7 @@ if (@infected){
 											my $detailed_blastresults;
 											while (my $line = <$BLAST_RESULTS>){
 												chomp $line;
-												print "$line,\n";
+												#~ print "$line,\n";
 												$rainbow_details .= $line."\n";
 												my @cols = split(',', $line);
 												$cols[4] =~ m/(ORF_\d+)/;
@@ -954,10 +963,7 @@ foreach my $sample (keys %infection_status){
 	
 }
 
-
 print "TRAVIS Scavenger completed\n";
-
-
 ###subroutines
 
 sub fetch_gbx {
@@ -967,7 +973,7 @@ sub fetch_gbx {
 	my $href_crt_entries = $_[1]; #in: undefined, out: defined
 	my $sref_database = $_[2];
 	my $sref_local_database = $_[3];
-	print "\t\tfetching features for $$sref_accession_number from NCBI...\n";
+	#~ print "\t\tfetching features for $$sref_accession_number from NCBI...\n";
 	#http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_001542&rettype=gb&retmode=xml
 	#http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=protein&id=NP_056795&rettype=gb&retmode=xml
 	my $gb_xml = File::Spec -> catfile ($$sref_local_database, $$sref_accession_number.'_'.$$sref_database.'_genebank.xml');
@@ -985,8 +991,8 @@ sub fetch_gbx {
 		my $test;
 		my $curl_tmp = 'curl_thread3.tmp';
 		for (my $try = 1; $try <= 10; $try++){
-			print "\t\t\tcurl try $try...\n";
-			system(qq(curl -s --retry 10 --retry-delay 5  -o $curl_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=gb&retmode=xml" )) and print "curl failed at '$$sref_accession_number': $!\n";
+			#~ print "\t\t\tcurl try $try...\n";
+			system(qq(curl -s --retry 5 --retry-delay 5  -o $curl_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=gb&retmode=xml" )) and print "curl failed at '$$sref_accession_number': $!\n";
 			$test = qx/grep 'GBQualifier_name' $curl_tmp/;
 			#~ print "test: $test\n";
 			sleep(1);
