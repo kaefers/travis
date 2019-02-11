@@ -1,8 +1,6 @@
 #!/usr/bin/env perl
 use warnings;
 use strict;
-
-use autodie;
 use File::Path qw(make_path);	
 use File::Basename;
 use File::Spec;
@@ -21,7 +19,7 @@ print "\t\t\tThis is TRAVIS Scavenger  v20190210\n";
 print '#' x 70,"\n";
 print '#' x 70,"\n";
 print "\n";
-my $partially = 1; #give a value if you want to run only the first entries of each file
+my $partially; #give a value if you want to run only the first entries of each file
 
 
 ###from http://lsrtools.1apps.com/wavetorgb/index.asp 
@@ -158,7 +156,7 @@ my $entrycounter;
 while (my $line = <$ORF_RESULTS>){
 	chomp $line;
 	next if ($line =~ m/^#/);
-	next if ($line !~ m/virus_sequence_Rotavirus_A__segment_8_40pm/);
+
 	
 	# last if ($entrycounter >= 30);
 	my @cols = split (',', $line);
