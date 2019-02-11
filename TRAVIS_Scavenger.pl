@@ -984,7 +984,7 @@ sub fetch_gbx {
 		}
 		close ($GB_XML);		
 	} else {
-		print "\t\tretrieving genebank xml from NCBI...\n";
+		#print "\t\tretrieving genebank xml from NCBI...\n";
 		
 		my $test;
 		my $curl_tmp = 'curl_thread3.tmp';
