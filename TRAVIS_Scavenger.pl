@@ -5,7 +5,7 @@ use File::Path qw(make_path);
 use File::Basename;
 use File::Spec;
 use Data::Dumper;
-use List::MoreUtils qw(uniq); # maybe replace?
+
 
 unless (@ARGV){
 	die "usage: perl TRAVIS_Scavenger.pl <TRAVIS_control_center.csv>\n";
@@ -15,7 +15,7 @@ my $TCC_file = shift @ARGV;
 
 print '#' x 70,"\n";
 print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Scavenger  v20190210\n";
+print "\t\t\tThis is TRAVIS Scavenger  v20190215\n";
 print '#' x 70,"\n";
 print '#' x 70,"\n";
 print "\n";
@@ -172,7 +172,7 @@ while (my $line = <$ORF_RESULTS>){
 			next if ($nr_matches_counter{$cols[1]} > $TCC{'max_references'} );
 			#~ print "referencing nr : $line\n";
 		} else {
-			next if ($TCC{'reference_library'} eq 'blind');
+			next if ($TCC{'reference_library'} eq 'blindnoacc'); #undocumented, will try to retrieve an accession from the blind fasta 
 			#~ print "referencing $cols[3] : $line\n";
 			$reflib_matches_counter{$cols[1]}{$cols[3]}++;
 			next if ($reflib_matches_counter{$cols[1]}{$cols[3]} > $TCC{'max_references'} );
@@ -224,12 +224,10 @@ if (@infected){
 		my %ORF_needs_a_rainbow; #stores combinations of sample and reference ORFs that will get a coloration
 		my %found_by; #stores the information which search-tool/method identified the sample ORF
 		my %start_end_orientation_by_PID; #stores the start, end and orientation of a PID, separated by underscore
-		#~ my %reference_AA_to_sample_ORF; # reference_AA (NT_ACC_ORF-Nr) = PID
-		# NT_ACC_ORF-Nr     header_ORF-Nr        hit-PID
+
 		my %potential_annotations; #stores all potential annotations by various methods for the sample ORFs. seen in title of plot element
 		my %sequences; #headbreaking multidimensional hash that contains plot information about aaaaaall sequences:
 		#####$sequences{$group}{$sequence_header}{$sequence_type(NT or AA)}{$sequence_description}{$start_end_orientation[0]}
-		#~ my %sequence_refs;
 		my %check_ORF_related_to;
 		my %check_ORF_relatedness_to_PID_identified_by_method;
 		my %check_potential_annotations;
@@ -244,7 +242,7 @@ if (@infected){
 			$crt_sample_info .= ${$sample_library_entries{'header'}}[$header_position].': '. ${$sample_library_entries{$sample_ID}}[$header_position]."\n";
 		}
 
-		#~ print $crt_sample_info;
+
 		my $crt_ORF_CSV = File::Spec -> catfile ($TCC{'ORF_dir'}, $sample_ID.'_ORF_data.csv');
 		###loading all ORF data from the sample ORF file
 		print "retrieving ORF data from '$crt_ORF_CSV'...\n";
@@ -294,15 +292,11 @@ if (@infected){
 					foreach my $crt_method (sort keys %{$suspicious_sequences{$sample_ID}{$sequence_header}{$crt_ORF_number}}){
 						foreach my $identified_as (@{$suspicious_sequences{$sample_ID}{$sequence_header}{$crt_ORF_number}{$crt_method}}){
 							my @crt_triple_elements = split('___',$identified_as); #splits the file source info
-							#~ print "!#!#!#!#!#!#!#!de triple elements based on $identified_as\n";
-							
 							unless ($check_found_by{$crt_ORF}{$crt_method}){
 								push(@{$found_by{$crt_ORF}}, $crt_method);
 								$check_found_by{$crt_ORF}{$crt_method} = 1;
 							}
 							if ($crt_method eq 'hmmer'){
-								#~ print "\t\t\t\t\t\t\tit was hmmer! will search the cluster file for accessions...\n";
-								#~ my @crt_triple_elements = split('___',$identified_as);
 								my $crt_cluster_file = File::Spec -> catfile($TCC{'reference_fastas'}, $TCC{'database_name'}.'_'.$crt_triple_elements[0].'.fasta');
 								unless (-s $crt_cluster_file ){
 									$crt_cluster_file = File::Spec -> catfile($TCC{'reference_fastas'},$TCC{'database_name'}.'_AA_'.$crt_triple_elements[0].'.fasta');
@@ -315,11 +309,7 @@ if (@infected){
 									chomp $line;
 									if ($line =~ m/^>(.*)/){
 										my @crt_double_elements = split('__', $1);
-										#~ my @crt_double_elements = split('__', $crt_triple_elements[-1]);
-										#~ print "\t\t\t\t\t\t\t\tthis one! $crt_double_elements[0]\n";
 										$crt_double_elements[-1] =~ s/^_//;
-										#~ print "hmmer says $crt_double_elements[-1]\n";
-										#~ print Dumper @crt_double_elements;
 										unless ($check_ORF_related_to{$crt_ORF}{$crt_double_elements[0]}){
 											push(@{$ORF_related_to{$crt_ORF}}, $crt_double_elements[0]);
 											$check_ORF_related_to{$crt_ORF}{$crt_double_elements[0]} = 1;
@@ -332,16 +322,11 @@ if (@infected){
 											push(@{$potential_annotations{$crt_ORF}}, $crt_double_elements[-1]);
 											$check_potential_annotations{$crt_ORF}{$crt_double_elements[-1]} = 1;
 										}
-#~ push(@{$identified_by{$crt_double_elements[0]}}, $crt_method) unless ($crt_method ~~ @{$identified_by{$crt_double_elements[0]}});
-												}
+									}
 								}
 								close ($CRT_CLUSTER_FILE);	
 							} elsif ($crt_method eq 'blastp_vs_nr'){
 								my @crt_double_elements = split('__', $crt_triple_elements[1]);
-								#~ print "\t\t\t\t\t\t\t\tthis one! $crt_double_elements[0]\n";
-								#~ print Dumper @crt_double_elements;
-								#~ print "$crt_method says $crt_double_elements[-1]\n";
-								
 								my $crt_description;
 								my $crt_sequence;
 								&fetch_sequence(
@@ -366,12 +351,7 @@ if (@infected){
 								
 							} else {
 								#~ ###if it was not hmmer, there is only a specific sequence to retrieve
-								#~ print "\t\t\t\t\t\t\tit was something where i should be able to find an accession number...\n";
-								#~ my @crt_triple_elements = split('___',$identified_as);
 								my @crt_double_elements = split('__', $crt_triple_elements[1]);
-								#~ print "\t\t\t\t\t\t\t\tthis one! $crt_double_elements[0]\n";
-								#~ print Dumper @crt_double_elements;
-								#~ print "$crt_method says $crt_double_elements[-1]\n";
 								unless ($check_ORF_related_to{$crt_ORF}{$crt_double_elements[0]}){
 									push(@{$ORF_related_to{$crt_ORF}}, $crt_double_elements[0]);
 									$check_ORF_related_to{$crt_ORF}{$crt_double_elements[0]} = 1;
@@ -384,9 +364,6 @@ if (@infected){
 									push(@{$potential_annotations{$crt_ORF}}, $crt_double_elements[-1]);
 									$check_potential_annotations{$crt_ORF}{$crt_double_elements[-1]} = 1;
 								}
-								#~ push(@{$identified_by{$crt_double_elements[0]}}, $crt_method) unless ($crt_method ~~ @{$identified_by{$crt_double_elements[0]}});
-								#~ push(@TRAVIS_annotation_PIDs, $crt_double_elements[0]) unless ($crt_double_elements[0] ~~ @TRAVIS_annotation_PIDs);
-							
 							}
 						}
 					}
@@ -435,23 +412,15 @@ if (@infected){
 				my $crt_ORF_found_by_methods;
 				if ($found_by{$crt_ORF}){
 					$ORF_needs_a_rainbow{$crt_ORF} = 'self';
-					#~ print "\t found by:\n";
-					#~ foreach my $crt_method (@{$found_by{$crt_ORF}}){
-						#~ print "\t  $crt_method\n";
-					#~ }
 					$crt_ORF_found_by_methods = join("\n", sort (@{$found_by{$crt_ORF}}));
 					foreach my $crt_PID (@{$ORF_related_to{$crt_ORF}}){
 						#~ print "\t\tcurrent PID: $crt_PID\n";
 						my $methods = join(' & ', sort (@{$ORF_relatedness_to_PID_identified_by_method{$crt_PID}{$crt_ORF}}));
-						#~ print "\t\t by methods: $methods\n";
-						#~ print "\t\t  retrieving NCBI data...\n";
 						my %crt_PID_entries;
 						my %crt_NT_entries;
 						&fetch_gbx(\$crt_PID,\%crt_PID_entries,\'protein',\$TCC{'reference_gbx'}); #retrieves a genebank entry in xml format for the current PID
 						if ($crt_PID_entries{'main'}{'source-db'}){ #and checks, if it finds a NT accession number as the source/origin of the PID and if there is one, it will
 							my @associated_PIDs;
-							#~ $crt_entries{'main'}{'source-db'} =~ m/([^\s]+)\.*\d*$/;
-							
 							my $crt_NT_ACC;
 							if ($crt_PID_entries{'main'}{'source-db'} =~ m/([A-Z][A-Z]+_*\d{3}\d*)\.*\d*$/){
 							#~ if ($1) {
@@ -460,16 +429,10 @@ if (@infected){
 								
 								&fetch_gbx(\$crt_NT_ACC,\%crt_NT_entries,\'nuccore',\$TCC{'reference_gbx'}); #retrieve the genebank entry of the source 
 								if (%crt_NT_entries){
-									#~ print "\t\t\thas its origin in $crt_NT_ACC\n";
 									$sequences{$sample_ID.'|||'.$sequence_header}{$crt_NT_ACC}{'NT'}{$crt_NT_ACC.'_'.$crt_NT_entries{'main'}{'definition'}}{'1_'.$crt_NT_entries{'main'}{'length'}}= 'Taxonomy: '.$crt_NT_entries{'main'}{'taxonomy'};
-
-									#~ print "got some nucleotide stuff!\n";
-									#~ print "\t\t\t looking for annotated ORFs...\n";
 									my %ORF_names; #orf names by start_end_orientation
 									foreach my $entry (sort keys %crt_NT_entries){ #looks through the features if there are more annotated ORFs that can be used for comparison and plotting in this reference
 										next if (!$crt_NT_entries{$entry}{'from'} or !$crt_NT_entries{$entry}{'to'} or !$crt_NT_entries{$entry}{'translation'});
-										
-										
 										if ($crt_NT_entries{$entry}{'product'}){
 											$crt_NT_entries{$entry}{'product'} =~ s/[^a-zA-Z0-9_\-]/_/g;
 											$crt_NT_entries{$entry}{'protein_id'} =~ s/\.\d+\s*$//;
@@ -485,13 +448,8 @@ if (@infected){
 											my $crt_reference_ORF = $crt_NT_ACC.'_ORF_'.$crt_NT_entries{$entry}{'protein_id'};
 											###if the PID of the ORF is the PID that is the match, it will be marked for generating a rainbow
 											if ($crt_PID eq $crt_NT_entries{$entry}{'protein_id'}){
-												#~ print "setting refernence for $sequence_header.'_rainbow_'.$crt_reference_ORF\n";
 												$ORF_needs_a_rainbow{$sequence_header.'_rainbow_'.$crt_reference_ORF} = $crt_ORF;
-												#~ $ORF_needs_a_rainbow{$crt_reference_ORF} = $crt_ORF;
 												$reference_ORFs_AA{$crt_reference_ORF} = $crt_NT_entries{$entry}{'translation'};
-												#~ print "\t\t\t  running rainbow on $crt_reference_ORF vs $crt_ORF\n" ;
-												#~ print "\t\t\t\tthat would be:\n\t\t\t\t$crt_ORF: $suspicious_ORFs_AA{$crt_ORF}\n";
-												#~ print "\t\t\t\tvs.\n\t\t\t\t$crt_reference_ORF: $reference_ORFs_AA{$crt_reference_ORF}\n";
 												$sequences{$sample_ID.'|||'.$sequence_header}{$crt_NT_ACC}{'ORF_'.$crt_NT_entries{$entry}{'protein_id'}}{$crt_NT_entries{$entry}{'protein_id'}.'_'.$crt_NT_entries{$entry}{'product'}}{$start_end_orientation_by_PID{$crt_NT_entries{$entry}{'protein_id'}}} = $ORF_names{$start_end_orientation_by_PID{$crt_NT_entries{$entry}{'protein_id'}}}; #generate the plot entry
 
 												
@@ -515,9 +473,6 @@ if (@infected){
 								$ORF_needs_a_rainbow{$sequence_header.'_rainbow_'.$crt_reference_ORF} = $crt_ORF;
 								$reference_ORFs_AA{$crt_reference_ORF} = $crt_PID_entries{'main'}{'sequence'};
 								$start_end_orientation_by_PID{$crt_PID}= '1_'. length($crt_PID_entries{'main'}{'sequence'}) *3 .'_forward';
-								#~ print "\t\t\t  running rainbow on $crt_reference_ORF vs $crt_ORF\n" ;
-								#~ print "\t\t\t\tthat would be:\n\t\t\t\t$crt_ORF: $suspicious_ORFs_AA{$crt_ORF}\n";
-								#~ print "\t\t\t\tvs.\n\t\t\t\t$crt_reference_ORF: $reference_ORFs_AA{$crt_reference_ORF}\n";
 								$sequences{$sample_ID.'|||'.$sequence_header}{$crt_NT_ACC}{'ORF_'.$crt_PID}{$crt_PID.'_'.$crt_PID_entries{'main'}{'definition'}}{$start_end_orientation_by_PID{$crt_PID}} = $crt_PID_entries{'main'}{'definition'}; #generate the plot entry
 							}
 						}
@@ -525,7 +480,6 @@ if (@infected){
 							push(@{$potential_annotations{$crt_ORF}}, $crt_PID_entries{'main'}{'product'}) unless ($crt_PID_entries{'main'}{'product'} ~~ @{$potential_annotations{$crt_ORF}});
 						}
 					}
-					#~ print "\n";
 				} else {
 					#~ print "\t\tno significant match yielded by any method\n\n";
 				}
@@ -533,9 +487,7 @@ if (@infected){
 				if ($potential_annotations{$crt_ORF}){
 					$joined_potential_annotations .= join("\n", sort (@{$potential_annotations{$crt_ORF}}));
 					$joined_potential_annotations .=  "\n\nfound by: \n$crt_ORF_found_by_methods\n";
-					#~ print "#potential annotations:\n$joined_potential_annotations\n#\n";
 				} else {
-					#~ print "#no potential annotations available\n#\n";
 					$joined_potential_annotations = "no potential annotations available";
 				}
 				
@@ -600,7 +552,6 @@ if (@infected){
 							$SVG_content .= qq(<text x="$xstart" y="$textyoffset" >$sequence_description</text>\n);
 							$max_length = $limits[1] if ($limits[1] > $max_length); #to find out the length of the longest sequence for setting witdh limit of the plot
 						} else {#this applies to all not NT.....i. e. ORFS
-							#~ print "\t\tadding $sequence_description to plot\n";
 							#most important step: try to puzzle the ORFs into the plot without them overlapping and also not wasting space by putting each ORF in a single row
 							my $does_not_fit ; #will contain the information whether the ORF fits in the current row
 							my $frame = $limits[2];
@@ -655,10 +606,7 @@ if (@infected){
 								#~ print "\t\tpushing $sequence\_$sequence_description to group leader ORFs\n";
 								if ($ORF_needs_a_rainbow{$sequence.'_'.$sequence_description}){
 									$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:black"></rect>\n);
-									#~ print "\t\tit will become the base for a rainbow!\n";
-									#~ print "\t\tsequence is $suspicious_ORFs_AA{$sequence.'_'.$sequence_description}\n";
 									my $crt_length = length($suspicious_ORFs_AA{$sequence.'_'.$sequence_description}) * 3;
-									#~ print "\t\tsequence length in NT is $crt_length\n";
 									my @color_block_ranges = 'NIL';
 									my @colors = 'NIL';
 									for (my $perc = 0; $perc <=100 - $color_resolution; $perc += $color_resolution){
@@ -672,7 +620,6 @@ if (@infected){
 									for (my $i = 1; $i < scalar @color_block_ranges; $i++){
 										$color_blocks{$sequence.'_'.$sequence_description}{$color_block_ranges[$i]} = $colors[$i];
 										$color_blocks_reverse{$sequence.'_'.$sequence_description}{$color_block_ranges[$i]} = $colors[-$i];
-										#~ print "\t\t\t$color_block_ranges[$i] forward: $colors[$i], reverse: $colors[-$i]\n";
 										push (@{$color_block_order{$sequence.'_'.$sequence_description}}, $color_block_ranges[$i]);
 									}
 									
@@ -688,7 +635,6 @@ if (@infected){
 									my $block_counter;
 									foreach my $crt_color_block (@{$color_block_order{$sequence.'_'.$sequence_description}}){
 										$block_counter++;
-										#~ print "\t\t\t\t$crt_color_block:\t\t$used_color_blocks{$crt_color_block}\n";
 										my @color_block_range = split ('_', $crt_color_block);
 										my $color_block_xstart = $xstart + $color_block_range[0] -1;
 										my $color_block_width = $color_block_range[1] - $color_block_range[0] + 1;
@@ -739,34 +685,23 @@ if (@infected){
 									print $SEQUENCE_ORGANIZATION_DETAILS_FH "$sample_ID,$sequence,$sequence_description,$mod_seq_annotation\n";
 									}
 							} else {
-								#~ print "#####checking ", $sequence.'_'.$sequence_type, " for rainbow\n";
-								#~ print "reference for: $group_leader.'_rainbow_'.$sequence.'_'.$sequence_type\n";
 								if ($ORF_needs_a_rainbow{$group_leader.'_rainbow_'.$sequence.'_'.$sequence_type}){
 									
 									my $associated_ORF = $ORF_needs_a_rainbow{$group_leader.'_rainbow_'.$sequence.'_'.$sequence_type};
 									if ($color_blocks{$associated_ORF}){
 										my $associated_ORF_sequence = $suspicious_ORFs_AA{$associated_ORF};
 										my $associated_ORF_sequence_reverse = reverse $associated_ORF_sequence;
-										#~ print "\t\tit will get a rainbow based on $associated_ORF!\n";
-										#~ sleep(1); 
 										open (my $RAINBOW_DB, '>', 'rainbow_db_tmp.fasta') or die "could not write to 'rainbow_db_tmp.fasta': $!\n";
 										print $RAINBOW_DB ">$associated_ORF\n$associated_ORF_sequence\n>$associated_ORF\_reverse\n$associated_ORF_sequence_reverse\n";
 										close ($RAINBOW_DB);
-										#~ $sequences{$crt_header.'_reversed'} = reverse $sequences{$crt_header};
 										open (my $RAINBOW_QRY, '>', 'rainbow_qry_tmp.fasta') or die "could not write to 'rainbow_qry_tmp.fasta': $!\n";
 										print $RAINBOW_QRY ">$sequence\_$sequence_type\n", $reference_ORFs_AA{$sequence.'_'.$sequence_type},"\n";
 										close ($RAINBOW_QRY);
-										#~ print "\t\t\tblasting...\n";
-										#~ system(qq($TCC{'blastp'} -query $crt_sample_suspicious_fasta -out $crt_sample_suspicious_blasted $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen qframe sframe length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$crt_sample_suspicious_fasta': $!\n";
 										system(qq($TCC{'makeblastdb'} -in rainbow_db_tmp.fasta -dbtype prot -out rainbow_db -title rainbow_db > /dev/null )) and die "Fatal: could not build blast database from 'rainbow_db'\: $!\n";
-										#~ system(qq($TCC{'blastp'} -query rainbow_qry.tmp -out rainbow_results.csv -db rainbow_db -evalue $color_sensitivity -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen slen length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for 'rainbow_qry.tmp ': $!\n";
-										system(qq($TCC{'blastp'} -query rainbow_qry_tmp.fasta -out rainbow_results.csv -db rainbow_db -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen slen length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\" > /dev/null )) and die "Fatal: blast failed for 'rainbow_qry.tmp ': $!\n";
-										
+										system(qq($TCC{'blastp'} -query rainbow_qry_tmp.fasta -out rainbow_results.csv -db rainbow_db -num_threads 1 -outfmt \"10 qseqid qlen slen length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\" > /dev/null )) and die "Fatal: blast failed for 'rainbow_qry.tmp ': $!\n";
 										if (-s 'rainbow_results_sorted.csv') {
 											system(qq(rm rainbow_results_sorted.csv));
 										}
-
-										#~ print "\t\t\tblast done\n";
 										&sort_CSV(\'rainbow_results.csv', \'3', \'true');
 										if (-s 'rainbow_results_sorted.csv'){
 											$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:$color"></rect>\n);
@@ -779,12 +714,9 @@ if (@infected){
 											my $detailed_blastresults;
 											while (my $line = <$BLAST_RESULTS>){
 												chomp $line;
-												#~ print "$line,\n";
 												$rainbow_details .= $line."\n";
 												my @cols = split(',', $line);
 												$cols[4] =~ m/(ORF_\d+)/;
-												#~ die "here we have $cols[5]\n" if (int($cols[5]) eq 100);
-												#~ print "\t\t\tdetected $cols[4] at $cols[5]% identity from $cols[10] to $cols[11] on current ORF from $cols[8] to $cols[9]\n";
 												$detailed_blastresults .= "$cols[5]% identity from $cols[10] to $cols[11] vs. $1 from $cols[8] to $cols[9]\n";
 												$identities += $cols[5];
 												$blast_lines++;
@@ -794,7 +726,6 @@ if (@infected){
 												my $qend = $cols[9]*3;
 												my $qlen = $cols[1]*3;
 												my $slen = $cols[2]*3;
-												#~ my $plot_direction;
 												my $hit_plot_start;
 												if ($frame eq 'forward') {
 													$hit_plot_start = $xstart +$qstart;
@@ -836,24 +767,16 @@ if (@infected){
 												my %color_at_position;
 												###what colors are in the matched part?
 												for (my $i = $sstart; $i <= $send; $i++){
-													#~ #qprint "checking between $sstart and $send\n";
 													foreach my $color_block (@{$color_block_order{$associated_ORF}}){# color blocks of the original sequence
 														my @start_end = split('_', $color_block);
-														#~ #print "\tchecking between $start_end[0] and $start_end[1]\n";
 														if (($i >= $start_end[0]) and ($i <= $start_end[1])){
 																$color_at_position{$i} = $used_color_blocks{$color_block};
 															last;
 														}
 													}
 												}
-												
-												
 												my $crt_color;
-												#~ $blast_areas .=  "$sstart\_to_$send\_is_$qstart\_to_$qend\____";
-												my $opacity=sprintf ("%.2f",$cols[5]/ 100);
-												#~ my $pinkyoffset = $yoffset -5;
-												#~ $SVG_content .= qq(<rect x="$hit_plot_start" y="$pinkyoffset" width="$hit_plot_width" height="20" style="fill:white; opacity:0.1; stroke-width:1; stroke:black"><title>blast_area of result $blast_lines: $sstart to $send is $qstart to $qend in plot direction $frame\nbased on  $cols[10] to $cols[11] is $cols[8] to $cols[9] vs $cols[4]:\n\n$detailed_blastresults </title></rect>\n);
-												
+												my $opacity=sprintf ("%.2f",$cols[5]/ 100);												
 												my $color_block_xstart;
 												my $color_block_yoffset= $yoffset + 1;
 												my $position_counter;
@@ -880,10 +803,6 @@ if (@infected){
 	
 											}
 											close ($BLAST_RESULTS);
-											
-											#~ my $identity_average = int($identities/$blast_lines);
-											#~ my $blastyoffset = $textyoffset +30;
-											#~ $SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:white; opacity:0"><title>$identity_average% average identity to $associated_ORF:\n$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}:\n\n$detailed_blastresults </title></rect>\n);
 											
 										} else {
 											print "#####could not find blast results for $associated_ORF!\n";
