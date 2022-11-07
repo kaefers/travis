@@ -64,7 +64,7 @@ download the references on a standard computer with a proper internet connection
 let the cluster do the heavy lifting afterwards. 
 Currently, TRAVIS uses [curl](https://curl.haxx.se/) to download files from NCBI. If the 
 access is not restricted on your cluster, you should be able to run everyting on it.
-I recently added [wget]-support as well as I ran into trouble with the institute's firewall.
+I recently added [wget](https://www.gnu.org/software/wget/)-support as well as I ran into trouble with the institute's firewall.
 It's also the new default. 
 If you have a large dataset, you can run TRAVIS Scavenger on the same TCC while
 TRAVIS Core is still running in order to get the results that have already been generated.
