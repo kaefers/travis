@@ -105,9 +105,9 @@ Please use the respective documentation of the dependencies for installation.
 * [HMMER3](http://hmmer.org/)
 * [MMSeqs2](https://github.com/soedinglab/MMseqs2)
 * [MAFFT](https://mafft.cbrc.jp/alignment/software/linux.html)
-* [DIAMOND](https://github.com/bbuchfink/diamond, please check https://github.com/bbuchfink/diamond/wiki/2.-Installation for installation with BLAST database support)
+* [DIAMOND](https://github.com/bbuchfink/diamond) (please check https://github.com/bbuchfink/diamond/wiki/2.-Installation for installation with BLAST database support)
 
-or use the singularity image that can be found here: https://doi.org/10.6084/m9.figshare.21510204
+or use the singularity image that can be found [here](https://doi.org/10.6084/m9.figshare.21510204)
 
 You need also need a local copy of a general database for the false-positive check. I suggest the non-redundant protein database of NCBI. However, it
 has gotten a little too big to be useful with blastp over the last few years, unless you have a massive amount of cores available. Good news is, that it is
