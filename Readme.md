@@ -299,7 +299,7 @@ minimal_cluster_size
 
 #### BLASTP
 Specifies paths and settings of BLASTP.
-The 'blastp_db_full' parameter expects the path to your local non-redundant protein database. Skipping this step can be achieved with using 'skip'. If you want to cheat with another database, you can use this here, too. 
+The 'blastp_db_full' parameter expects the path to your local 'full' protein database (i.e. the nr). Skipping this step can be achieved with using 'skip'. If you want to cheat with another database, you can use this here, too. 
 It just needs to be a blast database that has been created with makeblastdb.
 
 ```
@@ -311,8 +311,8 @@ blastp_db_full
 
 #### DIAMOND
 Specifies paths and settings of DIAMOND.
-The 'blastp_db_full' parameter expects the path to your local non-redundant protein database. Skipping this step can be achieved with using 'skip'. If you want to cheat with another database, you can use this here, too. 
-It just needs to be a blast database that has been created with makeblastdb.
+The 'diamond_db_full' parameter works like the 'blastp_db_full' parameter. Please remember to use 'diamond prepdb' before running the
+search.
 
 ```
 diamond
