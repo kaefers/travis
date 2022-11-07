@@ -16,7 +16,7 @@ my $TCC_file = shift @ARGV;
 
 print '#' x 70,"\n";
 print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Henchman pt1 v20190209\n";
+print "\t\t\tThis is TRAVIS Henchman pt1 v20221029\n";
 print '#' x 70,"\n";
 print '#' x 70,"\n";
 print "\n";
@@ -67,6 +67,7 @@ my @header_cols; #will contain the indices of columns that will become the seque
 my @split_by_cols; #will contain the indices of columns by which the main references will be split specified by $TCC{'split_references'}
 my @failed; #will collect failed entries for later review
 my %sequences; #multidimensional hash that will contain sequences. 1st dimension: NT/AA, 2nd dimension: main/company, 3rd dimension: split groups
+my $TTA_translations; #will collect the temporary TRAVIS accessions for retranslating the long sequence IDs. Blast complained about longer than 50 chars.....
 
 
 ###open and loop through each line of the reference library
@@ -75,6 +76,14 @@ my %sequences; #multidimensional hash that will contain sequences. 1st dimension
 unless ($TCC{'use_preparsed'}){ #set preparsed to 'yes' if it has not been declared in TCC. 'yes' is the default
 	$TCC{'use_preparsed'} = 'yes';
 }
+
+unless ($TCC{'ncbi_downloadmethod'}){ #set preparsed to 'yes' if it has not been declared in TCC. 'yes' is the default
+	$TCC{'ncbi_downloadmethod'} = 'wget';
+}
+
+(my $TTA_translations_file = $TCC{'reference_library'}) =~ s/\.csv$/_TTA_translations.csv/;
+
+
 (my $preparsed_reference_library = $TCC{'reference_library'}) =~ s/\.csv$/_preparsed.csv/;
 unless (-s $preparsed_reference_library){
 	print "$preparsed_reference_library is either not existing or empty! I will create one!\n";
@@ -96,8 +105,10 @@ if ($TCC{'use_preparsed'} eq 'no'){
 &check_dir(\$TCC{'reference_fastas'}); #to see if this directory exists an files can be written within
 
 my $c;
+my $TTA_seqcount = 0;
 while (my $line = <$REFLIB>){
 	chomp $line;
+	
 	#~ print "$line\n";
 	$c++;
 	#~ last if ($c >2);
@@ -144,7 +155,9 @@ while (my $line = <$REFLIB>){
 		next;
 	}
 	###
+	next if (($line =~ m/^#/) or ($line =~ m/^$/));
 	print "retrieving data for $cols[1]...\n";
+	
 	###create header according to $TCC{'header_names'}
 	my $crt_header_elements;
 	foreach my $colnumber (@header_cols){
@@ -186,7 +199,8 @@ while (my $line = <$REFLIB>){
 	print "loading data...\n";
 	my $main_or_company; #a switch for 'Main' and 'Company' depending on the current NT_ACC or PID
 	foreach my $crt_NT_ACC (@crt_all_NT_ACCs){
-		#~ print "next NT_ACC $crt_NT_ACC\n";
+		next if ($crt_NT_ACC =~ m/^na/i);
+		print "next NT_ACC $crt_NT_ACC\n";
 		$crt_NT_ACC =~ s/\.\d$//; #get rid of version number
 		if ($crt_NT_ACC eq $main_NT_ACC){
 			$main_or_company =  $main_name;
@@ -194,14 +208,14 @@ while (my $line = <$REFLIB>){
 			$main_or_company = 'company';
 		}
 		
-		#~ print "for: $crt_NT_ACC\n";
+		print "for: $crt_NT_ACC\n";
 		my @crt_PIDs; #will contain all PIDs associated with $crt_NT_ACC
 		if ($cols[$all_PID_col]){ #if there is content in $cols[$all_PID_col] (i.e. if we are reading a preparsed reference library):
 			@crt_PIDs = split ('&', $cols[$all_PID_col]); #take the PIDs from that variable
 		} else { 
 			&fetch_PIDs( #get it from the genebank entry
-				\$crt_NT_ACC, #NT accession number
-				\@crt_PIDs #undefined array to be filled with PIDs
+			\$crt_NT_ACC, #NT accession number
+			\@crt_PIDs #undefined array to be filled with PIDs
 			);
 		}
 		
@@ -231,16 +245,22 @@ while (my $line = <$REFLIB>){
 			$crt_sequence  = $local_reference_database_entries{'sequences'}{$crt_NT_ACC};
 			$crt_description = $local_reference_database_entries{'descriptions'}{$crt_NT_ACC};
 		}
-		
+		my $TRAVIS_TMP_ACC = sprintf("TTA_%025d", $TTA_seqcount);
+		$TTA_seqcount++;
 		if ($main_or_company ne 'company'){
 			print "$crt_NT_ACC: NT says main\n";
-			$sequences{'NT'}{$main_or_company}{'all'} .= ">$crt_NT_ACC$crt_header_elements\n$crt_sequence\n"; #sort the entry into the 'all' group...
+			$TTA_translations .= "$TRAVIS_TMP_ACC,$crt_NT_ACC$crt_header_elements\n";
 		} else {
-			$sequences{'NT'}{$main_or_company}{'all'} .= ">$crt_NT_ACC$crt_header_elements\__$crt_description\n$crt_sequence\n"; #sort the entry into the 'all' group...
+			$TTA_translations .= "$TRAVIS_TMP_ACC,$crt_NT_ACC$crt_header_elements\__$crt_description\n";
+			#$sequences{'NT'}{$main_or_company}{'all'} .= ">$TRAVIS_TMP_ACC\n$crt_sequence\n"; #sort the entry into the 'all' group...
 		}
+		$sequences{'NT'}{$main_or_company}{'all'} .= ">$TRAVIS_TMP_ACC\n$crt_sequence\n"; #sort the entry into the 'all' group...
+
+
+
 		#..and into all split groups:
 		foreach my $split_by_col (@split_by_cols){
-			$sequences{'NT'}{$main_or_company}{$header_elements[$split_by_col].'_'.$cols[$split_by_col]} .= ">$crt_NT_ACC$crt_header_elements\__$crt_description\n$crt_sequence\n";
+			$sequences{'NT'}{$main_or_company}{$header_elements[$split_by_col].'_'.$cols[$split_by_col]} .= ">$$TRAVIS_TMP_ACC\n$crt_sequence\n";
 		}
 		if (@crt_PIDs) {
 			push (@collected_PIDs, @crt_PIDs) ; #actually collect 
@@ -293,16 +313,23 @@ while (my $line = <$REFLIB>){
 			$crt_sequence  = $local_reference_database_entries{'sequences'}{$crt_PID};
 			$crt_description = $local_reference_database_entries{'descriptions'}{$crt_PID};
 		}	
+
+
+		my $TRAVIS_TMP_ACC = sprintf("TTA_%025d", $TTA_seqcount);
+		$TTA_seqcount++;
 		if ($main_or_company ne 'company'){
 			print "$crt_PID is Main! $crt_description\n";
-			$sequences{'AA'}{$main_or_company}{'all'} .= ">$crt_PID$crt_header_elements\__$main_name\n$crt_sequence\n";#sort the entry into the 'all' group...
+			$TTA_translations .= "$TRAVIS_TMP_ACC,$crt_PID$crt_header_elements\__$main_name\n";
 		} else {
 			#~ print  "$crt_description\n";
-			$sequences{'AA'}{$main_or_company}{'all'} .= ">$crt_PID$crt_header_elements\__$crt_description\n$crt_sequence\n";#sort the entry into the 'all' group...
+			$TTA_translations .= "$TRAVIS_TMP_ACC,$crt_PID$crt_header_elements\__$crt_description\n";
+			#$sequences{'AA'}{$main_or_company}{'all'} .= ">$crt_PID$crt_header_elements\__$crt_description\n$crt_sequence\n";#sort the entry into the 'all' group...
 		}
+		$sequences{'AA'}{$main_or_company}{'all'} .= ">$TRAVIS_TMP_ACC\n$crt_sequence\n";#sort the entry into the 'all' group...
+
 		#..and into all split groups:
 		foreach my $split_by_col (@split_by_cols){
-			$sequences{'AA'}{$main_or_company}{$header_elements[$split_by_col].'_'.$cols[$split_by_col]} .= ">$crt_PID$crt_header_elements\__$main_name\n$crt_sequence\n";
+			$sequences{'AA'}{$main_or_company}{$header_elements[$split_by_col].'_'.$cols[$split_by_col]} .= ">$TRAVIS_TMP_ACC\n$crt_sequence\n";
 		}
 	}
 	###
@@ -365,7 +392,7 @@ foreach my $seq_type (keys %sequences){
 					
 					if ($seq_type eq 'AA') {
 						#~ print "aligning...\n";
-						$TTT_content .= "$set_type\_$group,main\_$main_name,$crt_fasta_basename,$crt_aln_fasta_basename,$how_many_sequences,all,hmmer&jackhmmer&mmseqs&blastp,on\n"; #add  an entry to TTT
+						$TTT_content .= "$set_type\_$group,main\_$main_name,$crt_fasta_basename,$crt_aln_fasta_basename,$how_many_sequences,all,hmmer&jackhmmer&mmseqs&blastp&diamond,on\n"; #add  an entry to TTT
 					
 					
 						#~ if ($TCC{'mafft_binaries'}){
@@ -377,7 +404,7 @@ foreach my $seq_type (keys %sequences){
 					}
 				} else {
 					if ($seq_type eq 'AA') {
-						$TTT_content .= "$set_type\_$group,main\_$main_name,$crt_fasta_basename,NA,$how_many_sequences,all,jackhmmer&mmseqs&blastp,on\n"; #add  an entry to TTT
+						$TTT_content .= "$set_type\_$group,main\_$main_name,$crt_fasta_basename,NA,$how_many_sequences,all,jackhmmer&mmseqs&blastp&diamond,on\n"; #add  an entry to TTT
 					}
 					#system(qq(cat $crt_fasta > $crt_aln_fasta)) ;
 				}
@@ -390,6 +417,7 @@ foreach my $seq_type (keys %sequences){
 }
 ###
 &write_file(\$TCC{'TTT'},\$TTT_content); #write TTT
+&write_file(\$TTA_translations_file,\$TTA_translations); #write TTA translation file
 
 if (@failed){
 	print "failed to retrieve ", scalar @failed	, " items:\n";
@@ -434,11 +462,19 @@ sub fetch_sequence{
 #	"http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_001542&rettype=fasta";
 
 	my $test;
-	my $curl_tmp = 'curl.tmp';
+	my $download_tmp = 'ncbi_download.tmp';
 	for (my $try = 1; $try <= 10; $try++){
 		#~ print "try $try...\n";
-		system(qq(curl  --retry 10 --retry-delay 5 -s -o $curl_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=fasta")) and print "curl failed at '$$sref_accession_number': $!\n";
-		$test = qx/grep '>' $curl_tmp/;
+		
+		
+		if ($TCC{'ncbi_downloadmethod'} eq 'curl'){
+			system(qq(curl  --retry 10 --retry-delay 5 -s -o $download_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=fasta")) and print "curl failed at '$$sref_accession_number': $!\n";
+		} elsif  ($TCC{'ncbi_downloadmethod'} eq 'wget'){
+			system(qq(wget -q --waitretry=1 --read-timeout=5 -T 5 --no-check-certificate -O $download_tmp "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=fasta")) and print "wget failed at '$$sref_accession_number': $!\n";
+		} else {
+			die "no ncbi_downloadmethod specified\n";
+		}
+		$test = qx/grep '>' $download_tmp/;
 		#~ print "test: $test\n";
 		sleep(1);
 		last if ($test =~ m/>/);
@@ -448,12 +484,12 @@ sub fetch_sequence{
 	undef $test if ($test !~ m/>/);
 		
 	sleep(1);
-	if ((-s $curl_tmp) and ($test)){
+	if ((-s $download_tmp) and ($test)){
 
-		# print "reading $curl_tmp\n";
+		# print "reading $download_tmp\n";
 		undef $$sref_crt_sequence;
 		my $gb_entry;
-		&slurp_file(\$curl_tmp,\$gb_entry);
+		&slurp_file(\$download_tmp,\$gb_entry);
 		my @lines = split("\n", $gb_entry);
 		# print Dumper @lines;
 		for (my $l=1; $l < scalar @lines;$l++){
@@ -463,7 +499,7 @@ sub fetch_sequence{
 		}
 		($$sref_crt_description = $lines[0]) =~ s/[^a-zA-Z0-9 _\-\[\]]|$$sref_accession_number[^\s]* |\s*\[[^\]]+\]//g;
 		$$sref_crt_description =~ s/\s/_/g;
-		system(qq(rm $curl_tmp));
+		system(qq(rm $download_tmp));
 	} else {
 		print "failed to retrieve sequence for $$sref_accession_number\n";
 		
@@ -484,10 +520,19 @@ sub fetch_PIDs{
 	print "fetching PIDs for $$sref_accession_number from NCBI...\n";
 	#http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_001542&rettype=gb&retmode=xml
 	my $test;
-	my $curl_tmp = 'curl.tmp';
+	my $download_tmp = 'ncbi_download.tmp';
 	for (my $try = 1; $try <= 10; $try++){
-		system(qq(curl  --retry 10 --retry-delay 5 -s -o $curl_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=$$sref_accession_number&rettype=gb&retmode=xml")) and print "curl failed at '$$sref_accession_number': $!\n";
-		$test = qx/grep 'GBQualifier_name' $curl_tmp/;
+
+		if ($TCC{'ncbi_downloadmethod'} eq 'curl'){
+			system(qq(curl  --retry 10 --retry-delay 5 -s -o $download_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=$$sref_accession_number&rettype=gb&retmode=xml")) and print "curl failed at '$$sref_accession_number': $!\n";
+		} elsif  ($TCC{'ncbi_downloadmethod'} eq 'wget'){
+			system(qq(wget -q --waitretry=1 --read-timeout=5 -T 5 --no-check-certificate -O $download_tmp "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=$$sref_accession_number&rettype=gb&retmode=xml")) and print "wget failed at '$$sref_accession_number': $!\n";
+		} else {
+			die "no ncbi_downloadmethod specified\n";
+		}
+
+
+		$test = qx/grep 'GBQualifier_name' $download_tmp/;
 		#~ print "test: $test\n";
 		sleep(1);
 		last if ($test =~ m/GBQualifier_name/);
@@ -497,8 +542,8 @@ sub fetch_PIDs{
 		
 	sleep(1);
 	my $gb_entry;
-	if ((-s $curl_tmp) and ($test)){
-		&slurp_file(\$curl_tmp,\$gb_entry);
+	if ((-s $download_tmp) and ($test)){
+		&slurp_file(\$download_tmp,\$gb_entry);
 		
 	}
 	if (!$gb_entry){
@@ -520,7 +565,7 @@ sub fetch_PIDs{
 		}
 		sleep(1); 
 	}
-	system(qq(rm $curl_tmp)) if (-s $curl_tmp);
+	system(qq(rm $download_tmp)) if (-s $download_tmp);
 }
 
 
@@ -533,10 +578,20 @@ sub read_assembly_report{
 	
 	
 	my $test;
-	my $curl_tmp = 'curl.tmp';
+	my $download_tmp = 'ncbi_download.tmp';
 	for (my $try = 1; $try <= 10; $try++){
-		system(qq(curl  --retry 10 --retry-delay 5 -s -o $curl_tmp -k -L "$$sref_assembly_report")) and print "curl failed at '$$sref_assembly_report': $!\n";
-		$test = qx/grep 'Assembly name' $curl_tmp/;
+
+		if ($TCC{'ncbi_downloadmethod'} eq 'curl'){
+			system(qq(curl  --retry 10 --retry-delay 5 -s -o $download_tmp -k -L "$$sref_assembly_report")) and print "curl failed at '$$sref_assembly_report': $!\n";
+		} elsif  ($TCC{'ncbi_downloadmethod'} eq 'wget'){
+			system(qq(wget -q --waitretry=1 --read-timeout=5 -T 5 --no-check-certificate -O $download_tmp "$$sref_assembly_report")) and print "wget failed at '$$sref_assembly_report': $!\n";
+		} else {
+			die "no ncbi_downloadmethod specified\n";
+		}
+
+
+
+		$test = qx/grep 'Assembly name' $download_tmp/;
 		#~ print "test: $test\n";
 		sleep(1);
 		last if ($test =~ m/Assembly name/);
@@ -546,10 +601,10 @@ sub read_assembly_report{
 		
 	sleep(1);
 	my $gb_entry;
-	if ((-s $curl_tmp) and ($test)){
+	if ((-s $download_tmp) and ($test)){
 
 		##read the assembly report. Interesting is the tab-separated table after the commented lines
-		open (my $ASSEMBLY_REPORT, '<', $curl_tmp) or return "could not read from '$curl_tmp': $!\n";
+		open (my $ASSEMBLY_REPORT, '<', $download_tmp) or return "could not read from '$download_tmp': $!\n";
 		while (my $line = <$ASSEMBLY_REPORT>){
 			chomp $line;
 			next if ($line =~ m/^#/); #skip comments
@@ -558,7 +613,7 @@ sub read_assembly_report{
 			push (@$aref_crt_all_NT_ACCs , $cols[6]); #$cols[6] contains the accession numbers, pushed to the array
 		}
 		close ($ASSEMBLY_REPORT);
-		system(qq(rm $curl_tmp)) if (-s $curl_tmp); #remove file 
+		system(qq(rm $download_tmp)) if (-s $download_tmp); #remove file 
 		sleep(1); 
 	}
 }

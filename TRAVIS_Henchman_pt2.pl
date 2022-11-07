@@ -15,7 +15,7 @@ my $TCC_file = shift @ARGV;
 
 print '#' x 70,"\n";
 print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Henchman pt2 v20190209\n";
+print "\t\t\tThis is TRAVIS Henchman pt2 v20221029\n";
 print '#' x 70,"\n";
 print '#' x 70,"\n";
 print "\n";
@@ -36,12 +36,6 @@ while (my $line = <$TTT>){
 	chomp $line;
 	my @cols = split(',', $line);
 	print "$line\n";
-	
-	
-	
-
-						#######$TTT_content .= "$set_type\_$group,main\_$main_name,$crt_fasta_basename,NA,$how_many_sequences,all,jackhmmer&mmseqs&blastp,on\n"; #add  an entry to TTT
-					
 	my $crt_fasta = File::Spec -> catfile ($TCC{'reference_fastas'},$cols[2]);
 	my $crt_aln_fasta = File::Spec -> catfile ($TCC{'reference_fastas'}, $cols[3]);
 	$TTT_content .= $line."\n";
@@ -156,7 +150,7 @@ foreach my $cluster (keys %clusters){
 			system(qq($TCC{'mafft'} $TCC{'mafft_settings'} --thread $TCC{'nCPU'} $crt_out > $crt_out_aln)) ;
 		}
 		
-		$TTT_content .= 'company_cluster_'.$number_of_clusters.",company__$crt_description,$crt_out_basename,$crt_out_aln_basename,$cluster_sizes{$cluster},$TCC{'sample_subset'},hmmer&blastp&mmseqs&jackhmmer,on\n"; #add  an entry to TTT
+		$TTT_content .= 'company_cluster_'.$number_of_clusters.",company__$crt_description,$crt_out_basename,$crt_out_aln_basename,$cluster_sizes{$cluster},$TCC{'sample_subset'},hmmer&blastp&mmseqs&jackhmmer&diamond,on\n"; #add  an entry to TTT
 	}
 	#~ print "#" x 70;
 	#~ print "\ncluster $cluster:\n$cluster_sizes{$cluster} sequence(s)\n$crt_description\n$clusters{$cluster}";
@@ -170,7 +164,7 @@ if ($unclustered){
 	my $crt_unclustered_out_basename = basename($crt_unclustered_out);
 	my $how_many_sequences = `grep '>' $crt_unclustered_out | wc -l`;
 	chomp $how_many_sequences;
-	$TTT_content .= "company_unclustered,company_unclustered,$crt_unclustered_out_basename,NA,$how_many_sequences,$TCC{'sample_subset'},blastp&mmseqs&jackhmmer,on\n"; #add  an entry to TTT
+	$TTT_content .= "company_unclustered,company_unclustered,$crt_unclustered_out_basename,NA,$how_many_sequences,$TCC{'sample_subset'},blastp&mmseqs&jackhmmer&diamond,on\n"; #add  an entry to TTT
 	#~ print "writing to $crt_unclustered_out\n";
 }
 print "$number_of_clusters cluster(s)\nmax size: $max_cluster_size sequences\n";

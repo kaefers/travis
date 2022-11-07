@@ -13,12 +13,7 @@ unless (@ARGV){
 my $TCC_file = shift @ARGV;
 
 
-print '#' x 70,"\n";
-print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Scavenger  v20190215\n";
-print '#' x 70,"\n";
-print '#' x 70,"\n";
-print "\n";
+
 my $partially; #give a value if you want to run only the first entries of each file
 
 
@@ -37,10 +32,10 @@ my $color_sensitivity= 0.00001; #is the blast-evalue threshold for the matches
 
 print '#' x 70,"\n";
 print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Scavenger v0.8a\n";
+print "\t\t\tThis is TRAVIS Scavenger v20221029\n";
 print '#' x 70,"\n";
 print '#' x 70,"\n";
-my @supported_search_tools = ('blastp', 'hmmer', 'jackhmmer', 'mmseqs', 'blastp_vs_nr'); #only entries with the supportet search tools will be evaluated
+my @supported_search_tools = ('blastp', 'hmmer', 'jackhmmer', 'mmseqs', 'blastp_vs_full', 'diamond', 'diamond_vs_full', 'mmseqs_vs_full'); #only entries with the supportet search tools will be evaluated
 
 ###reading TRAVIS Control Center
 my %TCC; #contains configuration parameters from $TCC_file 
@@ -51,10 +46,13 @@ my %TCC; #contains configuration parameters from $TCC_file
 print "connected to TRAVIS Control Center\n";
 &check_dir(\$TCC{'reference_gbx'}); #genebank xmls will be stored here locally
 unless ($TCC{'max_references'}){
-	$TCC{'max_references'} = 100;
+	$TCC{'max_references'} = 50;
 }
 
-my $sample_library =$TCC{'sample_library'};
+my $sample_library = $TCC{'sample_library'};
+unless ($TCC{'ncbi_downloadmethod'}){ #set preparsed to 'yes' if it has not been declared in TCC. 'yes' is the default
+	$TCC{'ncbi_downloadmethod'} = 'wget';
+}
 
 
 my %sample_library_entries;
@@ -109,6 +107,7 @@ my $main_name; #will contain thename of the main protein/gene/whatever '<MAIN>_N
 
 
 
+
 if (-s $preparsed_reference_library){
 	open (my $REFLIB, '<', $preparsed_reference_library) or die "could not read from '$preparsed_reference_library': $!\n";
 	print "reading reference library '$preparsed_reference_library'...\n";
@@ -139,11 +138,30 @@ if (-s $preparsed_reference_library){
 	$TCC{'reference_library'} = 'blind' unless $TCC{'reference_library'};
 }
 
+(my $TTA_translations_file = $TCC{'reference_library'}) =~ s/\.csv$/_TTA_translations.csv/;
+my $ORF_results_to_translate = File::Spec -> catfile ($TCC{'result_dir'},  'ORF_results.csv');
+my $ORF_results = File::Spec -> catfile ($TCC{'result_dir'},  'ORF_results_retranslated.csv');
+
+my $ORF_tmp;
+&slurp_file(\$ORF_results_to_translate, \$ORF_tmp);
+open (my $TTA_T, '<', $TTA_translations_file) or die "could not read from '$TTA_translations_file': $!\n";
+while (my $line = <$TTA_T>){
+	chomp $line;
+	my @cols = split (',', $line);
+	$ORF_tmp =~ s/$cols[0]/$cols[1]/g;
+}
+close($TTA_T);
+&write_file(\$ORF_results, \$ORF_tmp);
+
+
+
 
 
 my %suspicious_sequences; #1st dimension: Sample ID, 2nd dimension: sequence header, 3rd dimension: ORF#, 4th dimension: methods that identified the sequence, 5th dimension: possible annotation
 my %infection_status; #infected/clean of Sample ID
-my $ORF_results = File::Spec -> catfile ($TCC{'result_dir'},  'ORF_results.csv');
+
+
+
 print "reading TRAVIS Core results '$ORF_results'...\n";
 &get_times(\$ORF_results);
 open (my $ORF_RESULTS, '<', $ORF_results) or die "could not read from '$ORF_results': $!\n";
@@ -151,25 +169,25 @@ print '#' x 70,"\n";
 my @infected; #will collect all sample IDs of infected samples
 ###reading the results and sorting according to sample, search tool/method and the detected related sequence(s)
 my %reflib_matches_counter;
-my %nr_matches_counter;
+my %full_matches_counter;
 my $entrycounter;
 while (my $line = <$ORF_RESULTS>){
 	chomp $line;
 	next if ($line =~ m/^#/);
 
 	
-	# last if ($entrycounter >= 30);
+	# last if ($entrycounter >= 3);
 	my @cols = split (',', $line);
-	if ($cols[1] ne 'NA'){
+	if (($cols[1] ne 'NA') and ($cols[1] ne 'N/A')){
 		$cols[1] =~ m/(.+)_(ORF_\d+)/;
 		
 		my $seq_pt1 = $1;
 		my $seq_pt2 = $2;
 		
-		if ($cols[3] eq 'nr'){
+		if ($cols[3] =~ m/full/i){
 			$entrycounter++;
-			$nr_matches_counter{$cols[1]}++;
-			next if ($nr_matches_counter{$cols[1]} > $TCC{'max_references'} );
+			$full_matches_counter{$cols[1]}++;
+			next if ($full_matches_counter{$cols[1]} > $TCC{'max_references'} );
 			#~ print "referencing nr : $line\n";
 		} else {
 			next if ($TCC{'reference_library'} eq 'blindnoacc'); #undocumented, will try to retrieve an accession from the blind fasta 
@@ -304,7 +322,26 @@ if (@infected){
 								unless (-s $crt_cluster_file ){ # in case of a blind flight
 									$crt_cluster_file = File::Spec -> catfile($TCC{'reference_fastas'},$crt_triple_elements[0].'.fasta');
 								}
-								open (my $CRT_CLUSTER_FILE, '<', $crt_cluster_file) or die "could not read from '$crt_cluster_file': $!\n";
+
+								(my $cluster_retranslated = $crt_cluster_file) =~ s/\.fasta$/_retranslated.fasta/;	
+
+
+								unless (-s $cluster_retranslated){							
+									my $cluster_tmp;
+									&slurp_file(\$crt_cluster_file, \$cluster_tmp);
+									open (my $TTA_T, '<', $TTA_translations_file) or die "could not read from '$TTA_translations_file': $!\n";
+									while (my $line = <$TTA_T>){
+										chomp $line;
+										my @cols = split (',', $line);
+										$cluster_tmp =~ s/$cols[0]/$cols[1]/g;
+									}
+									close($TTA_T);
+									&write_file(\$cluster_retranslated, \$cluster_tmp);
+								}
+
+
+
+								open (my $CRT_CLUSTER_FILE, '<', $cluster_retranslated) or die "could not read from '$cluster_retranslated': $!\n";
 								while (my $line = <$CRT_CLUSTER_FILE>){
 									chomp $line;
 									if ($line =~ m/^>(.*)/){
@@ -325,7 +362,8 @@ if (@infected){
 									}
 								}
 								close ($CRT_CLUSTER_FILE);	
-							} elsif ($crt_method eq 'blastp_vs_nr'){
+							} elsif ($crt_method =~ m/_vs_full/){
+							#	print "dingsing $crt_method\n";
 								my @crt_double_elements = split('__', $crt_triple_elements[1]);
 								my $crt_description;
 								my $crt_sequence;
@@ -335,7 +373,9 @@ if (@infected){
 									\$crt_sequence, #sequence to be retrieved
 									\'protein' #which database
 								);
+							#	print "tried to find something for --$crt_double_elements[-1]-- from --$crt_triple_elements[1]--  from --$identified_as--\n";
 								unless ($check_ORF_related_to{$crt_ORF}{$crt_double_elements[0]}){
+									
 									push(@{$ORF_related_to{$crt_ORF}}, $crt_double_elements[0]);
 									$check_ORF_related_to{$crt_ORF}{$crt_double_elements[0]} = 1;
 								}
@@ -350,6 +390,7 @@ if (@infected){
 								
 								
 							} else {
+								#print "dingsing2 $crt_method\n";
 								#~ ###if it was not hmmer, there is only a specific sequence to retrieve
 								my @crt_double_elements = split('__', $crt_triple_elements[1]);
 								unless ($check_ORF_related_to{$crt_ORF}{$crt_double_elements[0]}){
@@ -376,10 +417,10 @@ if (@infected){
 		#again looping through all the ORFs. now with complete data!
 		my $seqcountdings;
 		foreach my $sequence_header (sort keys %{$suspicious_sequences{$sample_ID}}){
-			print '#' x 70,"\n";
-			print "retrieving related data from NCBI for: $sequence_header\n";
+			#print '#' x 70,"\n";
+			#print "retrieving related data from NCBI for: $sequence_header\n";
 			$seqcountdings++;
-			#~ last if ($seqcountdings >= 2);
+			###last if ($seqcountdings >= 2);
 			my $NT_length = length ($ORF_data{'>'.$sequence_header});
 			#~ print " full NT length: $NT_length\n";
 			my $crt_full_seq = $sequence_header.','.$ORF_data{'>'.$sequence_header};	
@@ -691,14 +732,19 @@ if (@infected){
 									if ($color_blocks{$associated_ORF}){
 										my $associated_ORF_sequence = $suspicious_ORFs_AA{$associated_ORF};
 										my $associated_ORF_sequence_reverse = reverse $associated_ORF_sequence;
+
+										$associated_ORF =~ m/(ORF_\d+)/;
+										my $ORF_name = $1;
 										open (my $RAINBOW_DB, '>', 'rainbow_db_tmp.fasta') or die "could not write to 'rainbow_db_tmp.fasta': $!\n";
-										print $RAINBOW_DB ">$associated_ORF\n$associated_ORF_sequence\n>$associated_ORF\_reverse\n$associated_ORF_sequence_reverse\n";
+										#print $RAINBOW_DB ">$associated_ORF\n$associated_ORF_sequence\n>$associated_ORF\_reverse\n$associated_ORF_sequence_reverse\n";
+										print $RAINBOW_DB ">$ORF_name\n$associated_ORF_sequence\n>$ORF_name\_reverse\n$associated_ORF_sequence_reverse\n";
 										close ($RAINBOW_DB);
 										open (my $RAINBOW_QRY, '>', 'rainbow_qry_tmp.fasta') or die "could not write to 'rainbow_qry_tmp.fasta': $!\n";
 										print $RAINBOW_QRY ">$sequence\_$sequence_type\n", $reference_ORFs_AA{$sequence.'_'.$sequence_type},"\n";
 										close ($RAINBOW_QRY);
-										system(qq($TCC{'makeblastdb'} -in rainbow_db_tmp.fasta -dbtype prot -out rainbow_db -title rainbow_db > /dev/null )) and die "Fatal: could not build blast database from 'rainbow_db'\: $!\n";
-										system(qq($TCC{'blastp'} -query rainbow_qry_tmp.fasta -out rainbow_results.csv -db rainbow_db -num_threads 1 -outfmt \"10 qseqid qlen slen length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\" > /dev/null )) and die "Fatal: blast failed for 'rainbow_qry.tmp ': $!\n";
+										#system(qq($TCC{'makeblastdb'} -in rainbow_db_tmp.fasta -dbtype prot -out rainbow_db -title rainbow_db > /dev/null )) and print "Fatal: could not build blast database from 'rainbow_db of $sequence'\: $!\n";
+										system(qq($TCC{'makeblastdb'} -in rainbow_db_tmp.fasta -dbtype prot -out rainbow_db -title rainbow_db > /dev/null )) and system(qq(cat rainbow_db_tmp.fasta));
+										system(qq($TCC{'blastp'} -query rainbow_qry_tmp.fasta -out rainbow_results.csv -db rainbow_db -num_threads 1 -outfmt \"10 qseqid qlen slen length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\" > /dev/null )) and print "Fatal: blast failed for 'rainbow_qry.tmp of $sequence': $!\n";
 										if (-s 'rainbow_results_sorted.csv') {
 											system(qq(rm rainbow_results_sorted.csv));
 										}
@@ -805,7 +851,7 @@ if (@infected){
 											close ($BLAST_RESULTS);
 											
 										} else {
-											print "#####could not find blast results for $associated_ORF!\n";
+											#print "#####could not find blast results for $associated_ORF!\n";
 											$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:$color"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
 										}
 										
@@ -893,6 +939,8 @@ sub fetch_gbx {
 	#~ print "\t\tfetching features for $$sref_accession_number from NCBI...\n";
 	#http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_001542&rettype=gb&retmode=xml
 	#http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=protein&id=NP_056795&rettype=gb&retmode=xml
+
+	return if ($$sref_accession_number eq 'NP_694837');
 	my $gb_xml = File::Spec -> catfile ($$sref_local_database, $$sref_accession_number.'_'.$$sref_database.'_genebank.xml');
 	my $gb_entry;
 	if (-s $gb_xml){
@@ -906,11 +954,21 @@ sub fetch_gbx {
 		#print "\t\tretrieving genebank xml from NCBI...\n";
 		
 		my $test;
-		my $curl_tmp = 'curl_thread3.tmp';
-		for (my $try = 1; $try <= 10; $try++){
+		my $download_tmp = 'ncbi_download.tmp';
+		for (my $try = 1; $try <= 3; $try++){
 			#~ print "\t\t\tcurl try $try...\n";
-			system(qq(curl -s --retry 5 --retry-delay 5  -o $curl_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=gb&retmode=xml" )) and print "curl failed at '$$sref_accession_number': $!\n";
-			$test = qx/grep 'GBQualifier_name' $curl_tmp/;
+			#old: system(qq(curl -s --retry 5 --retry-delay 5  -o $download_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=gb&retmode=xml" )) and print "curl failed at '$$sref_accession_number': $!\n";
+			
+			
+			if ($TCC{'ncbi_downloadmethod'} eq 'curl'){
+				system(qq(curl  --retry 5 --retry-delay 5 -s -o $download_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=gb&retmode=xml")) and print "curl failed at '$$sref_accession_number': $!\n";
+			} elsif  ($TCC{'ncbi_downloadmethod'} eq 'wget'){
+				system(qq(wget -q --waitretry=1 --read-timeout=5 -T 5 --no-check-certificate -O $download_tmp "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=gb&retmode=xml")) and print "wget failed at '$$sref_accession_number': $!\n";
+			} else {
+				die "no ncbi_downloadmethod specified\n";
+			}
+			
+			$test = qx/grep 'GBQualifier_name' $download_tmp/;
 			#~ print "test: $test\n";
 			sleep(1);
 			last if ($test =~ m/GBQualifier_name/);
@@ -920,12 +978,12 @@ sub fetch_gbx {
 		undef $test if ($test !~ m/GBQualifier_name/);
 		
 		sleep(1);
-		if ((-s $curl_tmp) and ($test)){
+		if ((-s $download_tmp) and ($test)){
 			#~ print "reading $curl_tmp\n";
-			&slurp_file(\$curl_tmp,\$gb_entry);
-			system(qq(mv $curl_tmp $gb_xml));
+			&slurp_file(\$download_tmp,\$gb_entry);
+			system(qq(mv $download_tmp $gb_xml));
 		} else {
-			system (qq(rm $curl_tmp)) if (-s $curl_tmp);
+			system (qq(rm $download_tmp)) if (-s $download_tmp);
 			print "!!!!!!!!!!!!!could not fetch features for $$sref_accession_number from NCBI...\n";
 			sleep(1); 
 		}
@@ -974,7 +1032,13 @@ sub fetch_gbx {
 					
 			#<GBSeq_source-db>REFSEQ: accession NC_001542.1</GBSeq_source-db>
 			} elsif ($gb_entry_lines[$i] =~ m/<GBSeq_source-db>(.*)<\/GBSeq_source-db>/){
-				$href_crt_entries -> {'main'}{'source-db'}= $1;
+			#	<GBSeq_source-db>UniProtKB: locus NSP6_ROTSH, accession A2T3R0;; class: standard.; created: Apr 14, 2009.; sequence updated: Jan 15, 2008.; annotation updated: Aug 12, 2020.; xrefs: DQ838630.2, ABG75809.1, YP_002302225.1; xrefs (non-sequence databases): GeneID:7011363, KEGG:vg:7011363, Proteomes:UP000001119, GO:0033650, HAMAP:MF_04093, InterPro:IPR006950, Pfam:PF04866</GBSeq_source-db>
+				my $crt_match = $1;
+				if ($gb_entry_lines[$i] =~ m/xrefs:\s*([^,]+)[,;<]/){
+					$crt_match = $1;
+					#print "\tusing $crt_match from $gb_entry_lines[$i] \n";
+				}
+				$href_crt_entries -> {'main'}{'source-db'}= $crt_match;
 			} elsif ($gb_entry_lines[$i] =~ m/<GBQualifier_name>product<\/GBQualifier_name>/){
 				$gb_entry_lines[$i+1] =~ m/<GBQualifier_value>(.*)<\/GBQualifier_value>/;
 				$href_crt_entries -> {'main'}{'product'}= $1;
@@ -1008,6 +1072,7 @@ sub  slurp_file{
 
 
 
+
 sub fetch_sequence{
 	#download NCBI efetch data in fasta format for a given NT accession number and parse it for description and sequence
 	my $sref_accession_number = $_[0]; #accession number or PID
@@ -1017,26 +1082,45 @@ sub fetch_sequence{
 #	"http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_001542&rettype=fasta";
 
 	my $test;
-	my $curl_tmp = 'curl.tmp';
-	for (my $try = 1; $try <= 10; $try++){
-		#~ print "try $try...\n";
-		system(qq(curl  --retry 10 --retry-delay 5 -s -o $curl_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=fasta")) and print "curl failed at '$$sref_accession_number': $!\n";
-		$test = qx/grep '>' $curl_tmp/;
-		#~ print "test: $test\n";
-		sleep(1);
-		last if ($test =~ m/>/);
-		
-	}
-		
-	undef $test if ($test !~ m/>/);
-		
-	sleep(1);
-	if ((-s $curl_tmp) and ($test)){
+	my $gb_fasta = File::Spec -> catfile ($TCC{'reference_fastas'}, $$sref_accession_number.'_'.$$sref_database.'_genebank.fasta');
 
-		# print "reading $curl_tmp\n";
+	if (-s $gb_fasta){
+		#print "\t\treading existing genebank fasta $gb_fasta...\n";
+		$test = 1;
+	} else {
+		my $download_tmp = 'ncbi_download.tmp';
+		for (my $try = 1; $try <= 3; $try++){
+			#~ print "try $try...\n";
+			
+			
+			if ($TCC{'ncbi_downloadmethod'} eq 'curl'){
+				system(qq(curl  --retry 5 --retry-delay 5 -s -o $download_tmp -k -L "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=fasta")) and print "curl failed at '$$sref_accession_number': $!\n";
+			} elsif  ($TCC{'ncbi_downloadmethod'} eq 'wget'){
+				system(qq(wget -q --waitretry=1 --read-timeout=5 -T 5 --no-check-certificate -O $download_tmp "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=$$sref_database&id=$$sref_accession_number&rettype=fasta")) and print "wget failed at '$$sref_accession_number': $!\n";
+			} else {
+				die "no ncbi_downloadmethod specified\n";
+			}
+			$test = qx/grep '>' $download_tmp/;
+			#~ print "test: $test\n";
+			sleep(1);
+			last if ($test =~ m/>/);
+			
+		}
+		if ($test !~ m/>/){
+			undef $test;
+		} else {
+			system(qq(cp $download_tmp $gb_fasta));	
+		}
+		system(qq(rm $download_tmp));	
+	}
+	
+		
+	
+	if ((-s $gb_fasta) and ($test)){
+		# print "reading $download_tmp\n";
 		undef $$sref_crt_sequence;
 		my $gb_entry;
-		&slurp_file(\$curl_tmp,\$gb_entry);
+		&slurp_file(\$gb_fasta,\$gb_entry);
 		my @lines = split("\n", $gb_entry);
 		# print Dumper @lines;
 		for (my $l=1; $l < scalar @lines;$l++){
@@ -1046,13 +1130,13 @@ sub fetch_sequence{
 		}
 		($$sref_crt_description = $lines[0]) =~ s/[^a-zA-Z0-9 _\-\[\]]|$$sref_accession_number[^\s]* |\s*\[[^\]]+\]//g;
 		$$sref_crt_description =~ s/\s/_/g;
-		system(qq(rm $curl_tmp));
 	} else {
 		print "failed to retrieve sequence for $$sref_accession_number\n";
 		
 	}
 	sleep(1);  #NCBI does not like too many failed attempts in a short amount of time ;)
 }
+
 
 sub check_dir{
 	#creates it if it does not exist
@@ -1159,4 +1243,16 @@ sub get_times {
 		my $days = $hours / 24;
 		print  $OUT  "$method,$times_by_method{$method},$mins,$hours,$days\n";
 	}
+}
+
+
+sub write_file {
+	#takes a file path and a string to create a file with the string as content
+	my $sref_file = $_[0]; #file path
+	my $sref_content = $_[1]; #content to be written into the file
+	open (my $FH, '>',$$sref_file) or die "could not write to '$$sref_file': $!\n";
+	print $FH $$sref_content;
+	close $FH;
+
+	#~ print "$$sref_file written\n";
 }

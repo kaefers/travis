@@ -1,41 +1,49 @@
 database_name,reo_test
-sample_dir,/home/simon/travis/test_data/testfastas/
-ORF_dir,/home/simon/travis/test_data/testfastas/ORF_data/
+sample_dir,/mnt/d/scratch/travis-master/test_data/testfastas/
+ORF_dir,/mnt/d/scratch/travis-master/test_data/testfastas/ORF_data/
 min_ORF_length,50
 max_ORF_length,3000
-sample_library,/home/simon/travis/test_data/reo_test_sample_library.csv
+sample_library,/mnt/d/scratch/travis-master/test_data/reo_test_sample_library.csv
 
-reference_library,/home/simon/travis/test_data/reo_test_reference_library.csv
+reference_library,/mnt/d/scratch/travis-master/test_data/reo_test_reference_library.csv
 header_names,Name&Genus
-local_reference_database,/home/simon/travis/test_data/references/reo_test_local_reference_database.csv
-reference_fastas,/home/simon/travis/test_data/references/
-reference_gbx,/home/simon/travis/test_data/genebank/
+local_reference_database,/mnt/d/scratch/travis-master/test_data/references/reo_test_local_reference_database.csv
+reference_fastas,/mnt/d/scratch/travis-master/test_data/references/
+reference_gbx,/mnt/d/scratch/travis-master/test_data/genebank/
 sample_subset,main_positive
 split_references,Genus&Subfamily
-result_dir,/home/simon/travis/test_data/results/
-TTT,/home/simon/travis/test_data/reo_test_TTT.csv
+result_dir,/mnt/d/scratch/travis-master/test_data/results_full_diamond/
+TTT,/mnt/d/scratch/travis-master/test_data/reo_test_TTT3.csv
+max_references,3
 
-nCPU,2
+nCPU,15
 
-hmmbuild,/home/simon/travis_programs/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmbuild
-hmmsearch,/home/simon/travis_programs/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmsearch
+hmmbuild,/tools/hmmer-3.3.1/src/hmmbuild
+hmmsearch,/tools/hmmer-3.3.1/src/hmmsearch
 hmmsearch_settings,-E 1.00E-6
-jackhmmer,/home/simon/travis_programs/hmmer-3.1b2-linux-intel-x86_64/binaries/jackhmmer
+jackhmmer,/tools/hmmer-3.3.1/src/jackhmmer
 jackhmmer_settings,-E 1.00E-6
 
-mafft,/home/simon/travis_programs/mafft-7.302-linux/mafft-linux64/mafftdir/bin/mafft
+mafft,/tools/mafft-linux64/mafft.bat
 mafft_settings,--maxiterate 1000 --genafpair --adjustdirection --quiet  --reorder
-mafft_binaries,/home/simon/travis_programs/mafft-7.302-linux/mafft-linux64/mafftdir/libexec
+mafft_binaries,/tools/mafft-linux64/mafftdir/libexec/
 
-mmseqs,/home/simon/travis_programs/mmseqs2_SSE4/bin/mmseqs
+mmseqs,/tools/mmseqs/bin/mmseqs
 mmseqs_cluster_settings,-c 0.01 -v 0 --cluster-mode 0 -s 7.5 --mask 0
-mmseqs_search_settings,--max-seqs 10 -e 1.00E-6
+mmseqs_search_settings,--max-seqs 10 -e 1.00E-60
 minimal_cluster_size,2
 
-blastp,/home/simon/travis_programs/ncbi-blast-2.6.0+/bin/blastp
-blastp_settings,-evalue 1.00E-6 -max_target_seqs 10
-makeblastdb,/home/simon/travis_programs/ncbi-blast-2.6.0+/bin/makeblastdb
-blastp_db,/share/databases/blast/nr
+blastp,/tools/ncbi-blast-2.12.0+/bin/blastp 
+blastp_settings,-evalue 1.00E-60 -max_target_seqs 10
+makeblastdb,/tools/ncbi-blast-2.12.0+/bin/makeblastdb
+#blastp_db_full,/mnt/d/databases/swissprot
 
 
+diamond,/tools/diamond-2.0.15/bin/diamond 
+diamond_db_full,/mnt/d/databases/nr
+#diamond_db_full,skip
+diamond_settings,--fast
 
+ncbi_downloadmethod,wget
+
+#only_evaluate,1

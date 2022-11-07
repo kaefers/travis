@@ -16,7 +16,7 @@ my $TCC_file = shift @ARGV;
 
 print '#' x 70,"\n";
 print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Core v20190209\n";
+print "\t\t\tThis is TRAVIS Core v20221029\n";
 print '#' x 70,"\n";
 print '#' x 70,"\n";
 
@@ -26,7 +26,7 @@ my %TCC; #contains configuration parameters from $TCC_file
 	\$TCC_file, #file path
 	\%TCC #undef hash
 );
-my @supported_search_tools = ('blastp', 'hmmer', 'jackhmmer', 'mmseqs');
+my @supported_search_tools = ('blastp', 'hmmer', 'jackhmmer', 'mmseqs', 'diamond');
 print "connected to TRAVIS Control Center\n";
 
 
@@ -42,6 +42,7 @@ my $c1;
 while (my $line = <$SAMPLE_LIBRARY>){
 	chomp $line;
 	next if ($line =~ m/^#/);
+	next if ($line =~ m/^filename/);
 	
 	my @cols = split (',', $line);
 	my $sample_file = File::Spec -> catfile ($TCC{'sample_dir'} , $cols[0]);
@@ -202,7 +203,8 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 					\%TCC, #path to config
 					\%status_of_ORF_fasta, #contains all ORF fastas as keys
 					\$crt_sample_filepath,
-					\@suspicious_sequences
+					\@suspicious_sequences,
+					\'hmmer'
 					);
 				}
 			}
@@ -222,9 +224,10 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 					\%TCC, #path to config
 					\%status_of_ORF_fasta, #contains all ORF fastas as keys
 					\$crt_sample_filepath,
-					\@suspicious_sequences
+					\@suspicious_sequences,
+					\'jackhmmer'
 				);	
-			}elsif ($search_tool eq 'blastp'){
+			} elsif ($search_tool eq 'blastp'){
 				#~ print "\t\t\t###running blastp...";
 				&run_blastp(
 					\'blastp_AA_all_main_collection', #name of the reference file
@@ -234,9 +237,10 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 					\%TCC, #path to config
 					\%status_of_ORF_fasta, #contains all ORF fastas as keys
 					\$crt_sample_filepath,
-					\@suspicious_sequences
+					\@suspicious_sequences,
+					\'blastp'
 				);	
-			}elsif ($search_tool eq 'mmseqs'){
+			} elsif ($search_tool eq 'mmseqs'){
 				#~ print "\t\t\t###running mmseqs...";
 				&run_mmseqs(
 					\'mmseqs_AA_all_main_collection', #name of the reference file
@@ -246,7 +250,21 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 					\%TCC, #path to config
 					\%status_of_ORF_fasta, #contains all ORF fastas as keys
 					\$crt_sample_filepath,
-					\@suspicious_sequences
+					\@suspicious_sequences,
+					\'mmseqs'
+				);	
+			} elsif ($search_tool eq 'diamond'){
+				#~ print "\t\t\t###running diamond...";
+				&run_diamond(
+					\'diamond_AA_all_main_collection', #name of the reference file
+					\'diamond_AA_all_main', #description
+					\$crt_reference_fasta , #reference alignment
+					$ORF_RESULTS, #filehandle
+					\%TCC, #path to config
+					\%status_of_ORF_fasta, #contains all ORF fastas as keys
+					\$crt_sample_filepath,
+					\@suspicious_sequences,
+					\'diamond'
 				);	
 			}
 				
@@ -265,7 +283,8 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 					\%TCC, #path to config
 					\%status_of_ORF_fasta, #contains all ORF fastas as keys
 					\$crt_sample_filepath,
-					\@suspicious_sequences
+					\@suspicious_sequences,
+					\'hmmer'
 					);
 				}
 			}
@@ -285,9 +304,10 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 					\%TCC, #path to config
 					\%status_of_ORF_fasta, #contains all ORF fastas as keys
 					\$crt_sample_filepath,
-					\@suspicious_sequences
+					\@suspicious_sequences,
+					\'jackhmmer'
 				);	
-			}elsif ($search_tool eq 'blastp'){
+			} elsif ($search_tool eq 'blastp'){
 				#~ print "\t\t\t###running blastp...";
 				&run_blastp(
 					\'blastp_AA_all_company_collection', #name of the reference file
@@ -297,9 +317,10 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 					\%TCC, #path to config
 					\%status_of_ORF_fasta, #contains all ORF fastas as keys
 					\$crt_sample_filepath,
-					\@suspicious_sequences
+					\@suspicious_sequences,
+					\'blastp'
 				);	
-			}elsif ($search_tool eq 'mmseqs'){
+			} elsif ($search_tool eq 'mmseqs'){
 				#~ print "\t\t\t###running mmseqs...";
 				&run_mmseqs(
 					\'mmseqs_AA_all_company_collection', #name of the reference file
@@ -309,7 +330,21 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 					\%TCC, #path to config
 					\%status_of_ORF_fasta, #contains all ORF fastas as keys
 					\$crt_sample_filepath,
-					\@suspicious_sequences
+					\@suspicious_sequences,
+					\'mmseqs'
+				);	
+			} elsif ($search_tool eq 'diamond'){
+				#~ print "\t\t\t###running diamond...";
+				&run_diamond(
+					\'diamond_AA_all_company_collection', #name of the reference file
+					\'diamond_AA_all_company', #description
+					\$crt_reference_fasta , #reference alignment
+					$ORF_RESULTS, #filehandle
+					\%TCC, #path to config
+					\%status_of_ORF_fasta, #contains all ORF fastas as keys
+					\$crt_sample_filepath,
+					\@suspicious_sequences,
+					\'diamond'
 				);	
 			}
 		}
@@ -336,7 +371,8 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 						\%TCC, #path to config
 						\%status_of_ORF_fasta, #contains all ORF fastas as keys
 						\$crt_sample_filepath,
-						\@suspicious_sequences
+						\@suspicious_sequences,
+						\'hmmer'
 						);
 					}
 				}
@@ -356,9 +392,10 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 						\%TCC, #path to config
 						\%status_of_ORF_fasta, #contains all ORF fastas as keys
 						\$crt_sample_filepath,
-						\@suspicious_sequences
+						\@suspicious_sequences,
+						\'jackhmmer'
 					);	
-				}elsif ($search_tool eq 'blastp'){
+				} elsif ($search_tool eq 'blastp'){
 					#~ print "\t\t\t###running blastp...";
 					&run_blastp(
 						\'blastp_AA_main_positive_company_collection', #name of the reference file
@@ -368,9 +405,10 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 						\%TCC, #path to config
 						\%status_of_ORF_fasta, #contains all ORF fastas as keys
 						\$crt_sample_filepath,
-						\@suspicious_sequences
+						\@suspicious_sequences,
+						\'blastp'
 					);	
-				}elsif ($search_tool eq 'mmseqs'){
+				} elsif ($search_tool eq 'mmseqs'){
 					#~ print "\t\t\t###running mmseqs...";
 					&run_mmseqs(
 						\'mmseqs_AA_main_positive_company_collection', #name of the reference file
@@ -380,7 +418,21 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 						\%TCC, #path to config
 						\%status_of_ORF_fasta, #contains all ORF fastas as keys
 						\$crt_sample_filepath,
-						\@suspicious_sequences
+						\@suspicious_sequences,
+						\'mmseqs'
+					);	
+				} elsif ($search_tool eq 'diamond'){
+					#~ print "\t\t\t###running diamond...";
+					&run_diamond(
+						\'diamond_AA_main_positive_company_collection', #name of the reference file
+						\'diamond_AA_main_positive_company', #description
+						\$crt_reference_fasta , #reference alignment
+						$ORF_RESULTS, #filehandle
+						\%TCC, #path to config
+						\%status_of_ORF_fasta, #contains all ORF fastas as keys
+						\$crt_sample_filepath,
+						\@suspicious_sequences,
+						\'diamond'
 					);	
 				}
 			}
@@ -418,77 +470,100 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 		###getting the suspicious sequences from that sample 
 		my %suspicious_ORFs_AA; #collects the AA sequences of the ORFs of the sample
 		my $crt_sample_suspicious_NT_fasta = File::Spec -> catfile ($TCC{'result_dir'}, $crt_sample_ID.'_suspicious_NT.fasta');
-			open (my $CRT_SUSPICIOUS_NT, '>', $crt_sample_suspicious_NT_fasta) or die "could not write to '$crt_sample_suspicious_NT_fasta': $!\n";
-			my $crt_sample_suspicious_fasta = File::Spec -> catfile ($TCC{'result_dir'}, $crt_sample_ID.'_suspicious_AA.fasta');
-			open (my $CRT_SUSPICIOUS, '>', $crt_sample_suspicious_fasta) or die "could not write to '$crt_sample_suspicious_fasta': $!\n";
-			my $crt_sample_suspicious_blasted = File::Spec -> catfile ($TCC{'result_dir'}, $crt_sample_ID.'_suspicious_AA_blasted.csv');
-			print "writing to '$crt_sample_suspicious_fasta'...\n";
-			foreach my $sequence_header (@suspicious_sequences){
-				print "\t\t$sequence_header\n";
-				my $crt_full_seq = $sequence_header.','.$ORF_data{'>'.$sequence_header};
-				print $CRT_SUSPICIOUS_NT ">$sequence_header\n$ORF_data{'>'.$sequence_header}\n";
-				foreach my $crt_ORF (sort keys %{$ORF_data_by_sequence{$sequence_header}}){
-					my @cols = split (',', $ORF_data_by_sequence{$sequence_header}{$crt_ORF});
-					print $CRT_SUSPICIOUS ">$crt_ORF\n$cols[7]\n";
-					$suspicious_ORFs_AA{$crt_ORF} = $cols[7];
-				}
+		open (my $CRT_SUSPICIOUS_NT, '>', $crt_sample_suspicious_NT_fasta) or die "could not write to '$crt_sample_suspicious_NT_fasta': $!\n";
+		my $crt_sample_suspicious_fasta = File::Spec -> catfile ($TCC{'result_dir'}, $crt_sample_ID.'_suspicious_AA.fasta');
+		open (my $CRT_SUSPICIOUS, '>', $crt_sample_suspicious_fasta) or die "could not write to '$crt_sample_suspicious_fasta': $!\n";
+		print "writing to '$crt_sample_suspicious_fasta'...\n";
+		foreach my $sequence_header (@suspicious_sequences){
+			print "\t\t$sequence_header\n";
+			my $crt_full_seq = $sequence_header.','.$ORF_data{'>'.$sequence_header};
+			print $CRT_SUSPICIOUS_NT ">$sequence_header\n$ORF_data{'>'.$sequence_header}\n";
+			foreach my $crt_ORF (sort keys %{$ORF_data_by_sequence{$sequence_header}}){
+				my @cols = split (',', $ORF_data_by_sequence{$sequence_header}{$crt_ORF});
+				print $CRT_SUSPICIOUS ">$crt_ORF\n$cols[7]\n";
+				$suspicious_ORFs_AA{$crt_ORF} = $cols[7];
 			}
-			close ($CRT_SUSPICIOUS);
-			close ($CRT_SUSPICIOUS_NT);
-			###blasting all sample sequences vs the whole nr database
-			if ($TCC{'blastp_db'} !~ m/skip/){
-				print "blasting suspicious ORFs from $crt_sample_ID vs $TCC{'blastp_db'}...\n";
-				my $t1  = time();
+		}
+		close ($CRT_SUSPICIOUS);
+		close ($CRT_SUSPICIOUS_NT);
+
+
+
+
+
+
+			###checking all sample sequences vs the full database (nr)	 with blastp
+		if ($TCC{'blastp_db_full'} and ($TCC{'blastp_db_full'} !~ m/skip/)){
+			my $crt_sample_suspicious_blasted = File::Spec -> catfile ($TCC{'result_dir'}, $crt_sample_ID.'_suspicious_AA_vs_full_blastp.csv');
+			print "blasting suspicious ORFs from $crt_sample_ID vs $TCC{'blastp_db_full'}...\n";
+			my $t1  = time();
 				unless ( $TCC{'only_evaluate'}){
-					if ($TCC{'blastp_db'} =~ m/-remote/){
-						#system(qq($TCC{'blastp'} -query $crt_sample_suspicious_fasta -out $crt_sample_suspicious_blasted $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$crt_sample_suspicious_fasta': $!\n";
-						print "running remote blast!\n";
-						if (-s $crt_sample_suspicious_blasted) {
-							system (qq(rm $crt_sample_suspicious_blasted));
-						}
-						my %crt_suspicious;
-						&fasta_2_hash(\$crt_sample_suspicious_fasta,\%crt_suspicious);
-						for my $seq (keys %crt_suspicious){		
-							my $crt_content = "$seq\n$crt_suspicious{$seq}\n";
-							my $crt_fasta = 'tmp.fasta';
-							my $crt_out = 'tmp_blasted.csv';
-							&write_file(\$crt_fasta, \$crt_content);
-							system(qq($TCC{'blastp'} -query $crt_fasta -out $crt_out $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\"));
-							if (-s $crt_out){
-								system(qq(cat $crt_out >> $crt_sample_suspicious_blasted));
-								system (qq(rm $crt_out));
-							}
-							system (qq(rm $crt_fasta));
-						}
-					} else {	
-					system(qq($TCC{'blastp'} -query $crt_sample_suspicious_fasta -out $crt_sample_suspicious_blasted $TCC{'blastp_settings'} -db $TCC{'blastp_db'} -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$crt_sample_suspicious_fasta': $!\n";
-					}
+					system(qq($TCC{'blastp'} -query $crt_sample_suspicious_fasta -out $crt_sample_suspicious_blasted $TCC{'blastp_settings'} -db $TCC{'blastp_db_full'} -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$crt_sample_suspicious_fasta': $!\n";
+						#	(system(qq($blastp -query $$sref_crt_sample -out $crt_result $blastp_settings -db $blast_db_path -num_threads $ncpu -outfmt \"10 qseqid qlen qframe sframe length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$$sref_crt_sample': $!\n")  unless ($href_TCC -> {'only_evaluate'});
+
 				}
-			
-				my $t2  = time();
-				my $tdiff = $t2 - $t1;
-				my $hitcounter;
-				print "reading BLAST output '$crt_sample_suspicious_blasted'...\n";
-				open (my $BLAST_OUT, '<', $crt_sample_suspicious_blasted) or die "could not read from '$crt_sample_suspicious_blasted': $!\n";
-				while (my $line = <$BLAST_OUT>){
-					chomp $line;
-					next if ($line =~ m/^#/);
-					next if ($line =~ m/^$/);
-					my @cols = split (',', $line);
-					$cols[-1] =~ s/\.\d\s*$//; #get rid of version number
-					$hitcounter++;
-					print $ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[-1],nr,$tdiff,blastp_vs_nr,$cols[-4],$cols[-3],$cols[-2]\n";
-				}
-				if ($hitcounter){
-					print "\t\tfound $hitcounter hit(s)!\n";
-				} else {
-					print "\t\tno hits found\n";
-					print $ORF_RESULTS "$crt_sample_ID,NA,NA,nr,$tdiff,blastp_vs_nr,NA,NA,NA\n";
-				}
+			my $t2  = time();
+			my $tdiff = $t2 - $t1;
+			my $hitcounter;
+			print "reading BLAST output '$crt_sample_suspicious_blasted'...\n";
+			open (my $BLAST_OUT, '<', $crt_sample_suspicious_blasted) or die "could not read from '$crt_sample_suspicious_blasted': $!\n";
+			while (my $line = <$BLAST_OUT>){
+				chomp $line;
+				next if ($line =~ m/^#/);
+				next if ($line =~ m/^$/);
+				my @cols = split (',', $line);
+				$cols[-1] =~ s/\.\d\s*$//; #get rid of version number
+				$hitcounter++;
+				print $ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[-1],$TCC{'blastp_db_full'},$tdiff,blastp_vs_full,$cols[-4],$cols[-3],$cols[-2]\n";
 			}
+			if ($hitcounter){
+				print "\t\tfound $hitcounter hit(s)!\n";
+			} else {
+				print "\t\tno hits found\n";
+				print $ORF_RESULTS "$crt_sample_ID,NA,NA,$TCC{'blastp_db_full'},$tdiff,blastp_vs_full,NA,NA,NA\n";
+			}
+		}
+
+
+
+
+	###checking all sample sequences vs the full database (nr)	with diamond
+		if ($TCC{'diamond_db_full'} and ($TCC{'diamond_db_full'} !~ m/skip/)){
+			my $crt_sample_suspicious_diamonded = File::Spec -> catfile ($TCC{'result_dir'}, $crt_sample_ID.'_suspicious_AA_vs_full_diamond.tsv');
+			print "diamond vs suspicious ORFs from $crt_sample_ID vs $TCC{'diamond_db_full'}...\n";
+			my $t1  = time();
+				unless ( $TCC{'only_evaluate'}){
+					####system(qq($TCC{'blastp'} -query $crt_sample_suspicious_fasta -out $crt_sample_suspicious_blasted $TCC{'blastp_settings'} -db $TCC{'blastp_db_full'} -num_threads $TCC{'nCPU'} -outfmt \"10 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$crt_sample_suspicious_fasta': $!\n";
+						#	(system(qq($blastp -query $$sref_crt_sample -out $crt_result $blastp_settings -db $blast_db_path -num_threads $ncpu -outfmt \"10 qseqid qlen qframe sframe length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$$sref_crt_sample': $!\n")  unless ($href_TCC -> {'only_evaluate'});
+					#print "diamond call:\n\t$TCC{'diamond'} blastp -q $crt_sample_suspicious_fasta -o $crt_sample_suspicious_diamonded $TCC{'diamond_settings'} -d $TCC{'diamond_db_full'} -num_threads $TCC{'nCPU'} -f6 qseqid qlen qframe sframe length pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\n";
+					system(qq($TCC{'diamond'} blastp -q $crt_sample_suspicious_fasta -o $crt_sample_suspicious_diamonded $TCC{'diamond_settings'} --quiet -d $TCC{'diamond_db_full'} -p $TCC{'nCPU'} -f6 qseqid qlen qframe length pident nident qstart qend sstart send qseq sseq evalue score bitscore sseqid)) and die "Fatal: diamond failed for '$crt_sample_suspicious_fasta': $!\n";
+				}
+			my $t2  = time();
+			my $tdiff = $t2 - $t1;
+			my $hitcounter;
+			print "reading DIAMOND output '$crt_sample_suspicious_diamonded'...\n";
+			open (my $DIAMOND_OUT, '<', $crt_sample_suspicious_diamonded) or die "could not read from '$crt_sample_suspicious_diamonded': $!\n";
+			while (my $line = <$DIAMOND_OUT>){
+				chomp $line;
+				next if ($line =~ m/^#/);
+				next if ($line =~ m/^$/);
+				my @cols = split ('\t', $line);
+				$cols[-1] =~ s/\.\d\s*$//; #get rid of version number
+				$hitcounter++;
+				print $ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[-1],$TCC{'diamond_db_full'},$tdiff,diamond_vs_full,$cols[-4],$cols[-3],$cols[-2]\n";
+			}
+			if ($hitcounter){
+				print "\t\tfound $hitcounter hit(s)!\n";
+			} else {
+				print "\t\tno hits found\n";
+				print $ORF_RESULTS "$crt_sample_ID,NA,NA,$TCC{'diamond_db_full'},$tdiff,diamond_vs_full,NA,NA,NA\n";
+			}
+		}
+
+
 	} else {
 		print "no suspicious sequences in sample!\n";
-		print $ORF_RESULTS "$crt_sample_ID,NA,NA,nr,NA,blastp_vs_nr,NA,NA,NA\n";
+	#	print $ORF_RESULTS "$crt_sample_ID,NA,NA,$TCC{'blastp_db_full'},NA,blastp_vs_full,NA,NA,NA\n";
 	}
 		#~ $status_of_ORF_fasta{$crt_sample} 
 	print $ORF_FASTAS_DONE "$crt_sample,$status_of_ORF_fasta{$crt_sample}\n";
@@ -590,6 +665,7 @@ sub run_mmseqs{
 	my $href_status_of_ORF_fasta = $_[5];
 	my $sref_crt_sample = $_[6];
 	my $aref_suspicious_sequences = $_[7];
+	my $sref_rundesc = $_[8];
 	
 	unless (-s $$sref_fasta ){
 		print "$$sref_fasta does not exist or is empty...no need to run a search\n";
@@ -649,7 +725,7 @@ sub run_mmseqs{
 		next if ($line =~ m/^$/);
 		my @cols = split (/\t/, $line);
 		$hitcounter++;
-		print $sFHref_ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[1],$$sref_mmseqs_db_name,$tdiff,mmseqs,$cols[-2],$cols[-1],NA\n";
+		print $sFHref_ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[1],$$sref_mmseqs_db_name,$tdiff,$$sref_rundesc,$cols[-2],$cols[-1],NA\n";
 		$cols[0] =~ m/(.+)_(ORF_\d+)/;
 		my $seq_pt1 = $1;
 		push(@$aref_suspicious_sequences, $seq_pt1) unless ($seq_pt1 ~~ @$aref_suspicious_sequences);
@@ -660,10 +736,93 @@ sub run_mmseqs{
 		$href_status_of_ORF_fasta -> {basename($$sref_crt_sample)} = 'positive';
 	} else {
 		print "\t\tno hits found\n";
-		print $sFHref_ORF_RESULTS "$crt_sample_ID,NA,NA,$$sref_mmseqs_db_name,$tdiff,mmseqs,NA,NA,NA\n";
+		print $sFHref_ORF_RESULTS "$crt_sample_ID,NA,NA,$$sref_mmseqs_db_name,$tdiff,$$sref_rundesc,NA,NA,NA\n";
 	}
 	
 }
+
+
+
+sub run_diamond{
+	#~ return;
+	my $sref_diamond_db_name = $_[0];
+	my $sref_description = $_[1];
+	my $sref_fasta = $_[2]; #file path
+	my $sFHref_ORF_RESULTS = $_[3];
+	my $href_TCC = $_[4];
+	my $href_status_of_ORF_fasta = $_[5];
+	my $sref_crt_sample = $_[6];
+	my $aref_suspicious_sequences = $_[7];
+	my $sref_rundesc = $_[8];
+	
+	unless (-s $$sref_fasta ){
+		print "$$sref_fasta does not exist or is empty...no need to run a search\n";
+		return;
+	}
+	
+	my $diamond_db_path = File::Spec -> catfile ($href_TCC -> {'reference_fastas'}, $$sref_diamond_db_name.'.diamond');
+	my $diamond_results = File::Spec -> catdir ($href_TCC -> {'result_dir'}, 'diamond_results');
+	my $diamond = $href_TCC -> {'diamond'};
+	&check_dir(\$diamond_results);
+	unless (-s $diamond_db_path.'.dmnd'){
+		print "\tbuilding diamond database '$diamond_db_path'...\n";
+	#	my $makeblastdb = $href_TCC -> {'makeblastdb'};
+		(system(qq($diamond makedb --in $$sref_fasta --db $diamond_db_path)) and die "Fatal: could not build blast database from '$$sref_fasta '\: $!\n") unless ($href_TCC -> {'only_evaluate'});
+	#	(system(qq($makeblastdb --in $$sref_fasta -parse_seqids -dbtype prot -out $blast_db_path -title $blast_db_path )) and die "Fatal: could not build blast database from '$$sref_fasta '\: $!\n") unless ($href_TCC -> {'only_evaluate'});
+	} else {
+		print "\t'$diamond_db_path' already exists...\n";
+	}
+	
+	my $ncpu = $href_TCC -> {'nCPU'};
+	my $diamond_settings = '--fast';
+	$diamond_settings = $href_TCC -> {'diamond_settings'} if ($href_TCC -> {'diamond_settings'});
+	
+	my $hitcounter;
+	my $crt_basename = basename($$sref_crt_sample);
+	$crt_basename =~ s/\.[^\.]+$//;
+	(my $crt_sample_ID = $crt_basename) =~ s/_ORFs_AA//;
+	#~ #print "$crt_basename\n";
+	my $crt_result = File::Spec -> catfile ($diamond_results, $$sref_diamond_db_name.'_vs_'.$crt_basename.'.tsv');
+	#	print "$crt_result\n";
+	my $t1  = time();
+	unless ( $href_TCC -> {'only_evaluate'}){
+		#fromblast: (system(qq($diamond -query $$sref_crt_sample -out $crt_result $blastp_settings -db $blast_db_path -num_threads $ncpu -outfmt \"10 qseqid qlen qframe sframe length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\")) and die "Fatal: blast failed for '$$sref_crt_sample': $!\n")  unless ($href_TCC -> {'only_evaluate'});
+
+		(system(qq($diamond blastp -q $$sref_crt_sample -o $crt_result $diamond_settings -d $diamond_db_path -p $ncpu --quiet -f6 qseqid qlen qframe length pident nident qstart qend sstart send qseq sseq evalue score bitscore sseqid)) and die "Fatal: diamond failed for '$$sref_crt_sample': $!\n")  unless ($href_TCC -> {'only_evaluate'});
+
+	}
+	my $t2  = time();
+	my $tdiff = $t2 - $t1;
+
+	open (my $CRT_RESULT, '<', $crt_result) or die "could not read from '$crt_result': $!\n";
+	while (my $line = <$CRT_RESULT>){
+		chomp $line;
+		next if ($line =~ m/^#/);
+		next if ($line =~ m/^$/);
+		my @cols = split ('\t', $line);
+		$cols[5] =~ s/\s+$//;
+		$hitcounter++;
+		#if ($TCC{'reference_library'} eq 'blind'){
+		#	print $sFHref_ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[15],$$sref_diamond_db_name,$tdiff,$$sref_rundesc,$cols[-4],$cols[-3],$cols[-2]\n";
+		#} else {
+			print $sFHref_ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[15],$$sref_diamond_db_name,$tdiff,$$sref_rundesc,$cols[-4],$cols[-3],$cols[-2]\n";
+		#}
+		$cols[0] =~ m/(.+)_(ORF_\d+)/;
+		my $seq_pt1 = $1;
+		push(@$aref_suspicious_sequences, $seq_pt1) unless ($seq_pt1 ~~ @$aref_suspicious_sequences);
+	}
+	if ($hitcounter){
+		print "\t\tfound $hitcounter hit(s)!\n";
+		$href_status_of_ORF_fasta -> {basename($$sref_crt_sample)} = 'positive';
+	} else {
+		print "\t\tno hits found\n";
+		print $sFHref_ORF_RESULTS "$crt_sample_ID,NA,NA,$$sref_diamond_db_name,$tdiff,$$sref_rundesc,NA,NA,NA\n";
+	}
+	
+}
+
+
+
 
 
 
@@ -678,6 +837,7 @@ sub run_blastp{
 	my $href_status_of_ORF_fasta = $_[5];
 	my $sref_crt_sample = $_[6];
 	my $aref_suspicious_sequences = $_[7];
+	my $sref_rundesc = $_[8];
 	
 	unless (-s $$sref_fasta ){
 		print "$$sref_fasta does not exist or is empty...no need to run a search\n";
@@ -690,6 +850,7 @@ sub run_blastp{
 	unless (-s $blast_db_path.'.phr'){
 		print "\tbuilding blast database '$blast_db_path'...\n";
 		my $makeblastdb = $href_TCC -> {'makeblastdb'};
+		#(system(qq($makeblastdb -in $$sref_fasta -parse_seqids -dbtype prot -out $blast_db_path -title $blast_db_path )) and die "Fatal: could not build blast database from '$$sref_fasta '\: $!\n") unless ($href_TCC -> {'only_evaluate'});
 		(system(qq($makeblastdb -in $$sref_fasta -dbtype prot -out $blast_db_path -title $blast_db_path )) and die "Fatal: could not build blast database from '$$sref_fasta '\: $!\n") unless ($href_TCC -> {'only_evaluate'});
 	} else {
 		print "\t'$blast_db_path' already exists...\n";
@@ -721,7 +882,11 @@ sub run_blastp{
 		my @cols = split (',', $line);
 		$cols[5] =~ s/\s+$//;
 		$hitcounter++;
-		print $sFHref_ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[5],$$sref_blast_db_name,$tdiff,blastp,$cols[-4],$cols[-3],$cols[-2]\n";
+		if ($TCC{'reference_library'} eq 'blind'){
+			print $sFHref_ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[-1],$$sref_blast_db_name,$tdiff,$$sref_rundesc,$cols[-4],$cols[-3],$cols[-2]\n";
+		} else {
+			print $sFHref_ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[5],$$sref_blast_db_name,$tdiff,$$sref_rundesc,$cols[-4],$cols[-3],$cols[-2]\n";
+		}
 		$cols[0] =~ m/(.+)_(ORF_\d+)/;
 		my $seq_pt1 = $1;
 		push(@$aref_suspicious_sequences, $seq_pt1) unless ($seq_pt1 ~~ @$aref_suspicious_sequences);
@@ -731,7 +896,7 @@ sub run_blastp{
 		$href_status_of_ORF_fasta -> {basename($$sref_crt_sample)} = 'positive';
 	} else {
 		print "\t\tno hits found\n";
-		print $sFHref_ORF_RESULTS "$crt_sample_ID,NA,NA,$$sref_blast_db_name,$tdiff,blastp,NA,NA,NA\n";
+		print $sFHref_ORF_RESULTS "$crt_sample_ID,NA,NA,$$sref_blast_db_name,$tdiff,$$sref_rundesc,NA,NA,NA\n";
 	}
 	
 }
@@ -746,6 +911,7 @@ sub run_jackhmmer{
 	my $href_status_of_ORF_fasta = $_[5];
 	my $sref_crt_sample = $_[6];
 	my $aref_suspicious_sequences = $_[7];
+	my $sref_rundesc = $_[8];
 	
 	unless (-s $$sref_fasta ){
 		print "$$sref_fasta does not exist or is empty...no need to run a search\n";
@@ -779,7 +945,7 @@ sub run_jackhmmer{
 		$line =~ s/\h+/\t/g;
 		my @cols = split (/\t/, $line);
 			#~ print "$cols[0]\n";
-		print $FH_ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[2],$$sref_reference_name,$tdiff,jackhmmer,$cols[4],$cols[5],NA\n";
+		print $FH_ORF_RESULTS "$crt_sample_ID,$cols[0],$cols[2],$$sref_reference_name,$tdiff,$$sref_rundesc,$cols[4],$cols[5],NA\n";
 		$cols[0] =~ m/(.+)_(ORF_\d+)/;
 		my $seq_pt1 = $1;
 		push(@$aref_suspicious_sequences, $seq_pt1) unless ($seq_pt1 ~~ @$aref_suspicious_sequences);
@@ -789,7 +955,7 @@ sub run_jackhmmer{
 		$href_status_of_ORF_fasta -> {basename($$sref_crt_sample)} = 'positive';
 	} else {
 		print "\t\tno hits found\n";
-		print $FH_ORF_RESULTS "$crt_sample_ID,NA,NA,$$sref_reference_name,$tdiff,jackhmmer,NA,NA,NA\n";
+		print $FH_ORF_RESULTS "$crt_sample_ID,NA,NA,$$sref_reference_name,$tdiff,$$sref_rundesc,NA,NA,NA\n";
 	}
 }
 
@@ -806,6 +972,7 @@ sub run_hmmer{
 	my $href_status_of_ORF_fasta = $_[5];
 	my $sref_crt_sample = $_[6];
 	my $aref_suspicious_sequences = $_[7];
+	my $sref_rundesc = $_[8];
 	
 	unless (-s $$sref_alignment ){
 		print "$$sref_alignment does not exist or is empty...no need to run a search\n";
@@ -845,7 +1012,7 @@ sub run_hmmer{
 		my @cols = split (/\t/, $line);
 		$hitcounter++;
 		#~ #print "$cols[0]\n";
-		print $sFHref_ORF_RESULTS "$crt_sample_ID,$cols[0],$$sref_description,$$sref_hmm_name,$tdiff,hmmer,$cols[4],$cols[5],NA\n";
+		print $sFHref_ORF_RESULTS "$crt_sample_ID,$cols[0],$$sref_description,$$sref_hmm_name,$tdiff,$$sref_rundesc,$cols[4],$cols[5],NA\n";
 		$cols[0] =~ m/(.+)_(ORF_\d+)/;
 		my $seq_pt1 = $1;
 		push(@$aref_suspicious_sequences, $seq_pt1) unless ($seq_pt1 ~~ @$aref_suspicious_sequences);
@@ -855,7 +1022,7 @@ sub run_hmmer{
 		$href_status_of_ORF_fasta -> {basename($$sref_crt_sample)} = 'positive';
 	} else {
 		print "\t\tno hits found\n";
-		print $sFHref_ORF_RESULTS "$crt_sample_ID,NA,NA,$$sref_hmm_name,$tdiff,hmmer,NA,NA,NA\n";
+		print $sFHref_ORF_RESULTS "$crt_sample_ID,NA,NA,$$sref_hmm_name,$tdiff,$$sref_rundesc,NA,NA,NA\n";
 	}
 	
 }
