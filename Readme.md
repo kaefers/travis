@@ -37,7 +37,7 @@ script.
 ```
 $perl TRAVIS_Henchman_pt1.pl TCC.csv
 $perl TRAVIS_Henchman_pt2.pl TCC.csv
-$perl TRAVIS_Core. pl TCC.csv
+$perl TRAVIS_Core.pl TCC.csv
 $perl TRAVIS_Scavenger.pl TCC.csv
 ```
 
