@@ -5,20 +5,35 @@ use File::Path qw(make_path);
 use File::Basename;
 use File::Spec;
 use Data::Dumper;
+use Parallel::Loops;
+no warnings 'experimental::smartmatch';
 
 
 unless (@ARGV){
-	die "usage: perl TRAVIS_Core.pl <TRAVIS_control_center.csv>\n";
+	die "usage: perl TRAVIS_Core.pl <TRAVIS_control_center.csv> <optional: sample>\n";
 }
 my $TCC_file = shift @ARGV;
-#~ my $TCC_file = '/home/skaefer/reo_full/reo_full_TCC.csv';
-#~ my $TCC_file = '/home/skaefer/sync/work/parkinson/synuclein_TCC.csv';
 
 print '#' x 70,"\n";
 print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Core v20221029\n";
+print "\t\t\tThis is TRAVIS Core v20230214\n";
 print '#' x 70,"\n";
 print '#' x 70,"\n";
+
+my $subset;
+if (@ARGV){
+	$subset = shift @ARGV;
+	if ($subset eq 'preparation'){ 
+		print "will prepare all databases and perform no searches\n";
+	} else {
+		print "will only search in samples that match $subset\n";
+	} 
+} else {
+	print "will search in all samples\n";
+	$subset = 'all';
+}
+
+
 
 ###reading TRAVIS Control Center
 my %TCC; #contains configuration parameters from $TCC_file 
@@ -42,8 +57,11 @@ my $c1;
 while (my $line = <$SAMPLE_LIBRARY>){
 	chomp $line;
 	next if ($line =~ m/^#/);
+	next if ($line =~ m/^$/);
 	next if ($line =~ m/^filename/);
-	
+	if (($subset ne 'preparation') and ($subset ne 'all')){
+		 next if ($line !~ m/$subset/);
+	}
 	my @cols = split (',', $line);
 	my $sample_file = File::Spec -> catfile ($TCC{'sample_dir'} , $cols[0]);
 	#~ my $crt_sample_ORF_data = File::Spec -> catfile ($TCC{'ORF_dir'} , $cols[1].'ORFs.fasta');
@@ -84,19 +102,23 @@ while (my $line = <$SAMPLE_LIBRARY>){
 	#~ print "read $sample_file\n";
 	print '#' x 70,"\n";
 }
-###
 print "checking result_dir..\n";
 &check_dir(\$TCC{'result_dir'});	
-my $ORF_fastas = File::Spec -> catfile ($TCC{'result_dir'}, 'ORF_fastas.txt');
-&write_file(\$ORF_fastas ,\$ORF_fastas_content); 
-foreach my $skipped (@skipped){
-	print "skipped $skipped because it was empty or non existent!\n";
+if ($subset eq 'preparation'){
+	$status_of_ORF_fasta{'preparation_dummy'} = 'positive';
+	push (@{$status_of_ORF_fasta{'order'}}, 'preparation_dummy');
+} else {
+	
+	my $ORF_fastas = File::Spec -> catfile ($TCC{'result_dir'}, $subset.'__ORF_fastas.txt');
+	&write_file(\$ORF_fastas ,\$ORF_fastas_content); 
+	foreach my $skipped (@skipped){
+		print "skipped $skipped because it was empty or non existent!\n";
+	}
 }
 
 
-
-my $ORF_fastas_done = File::Spec -> catfile ($TCC{'result_dir'}, 'ORF_fastas_done.txt');
-my $ORF_results = File::Spec -> catfile ($TCC{'result_dir'},  'ORF_results.csv');
+my $ORF_fastas_done = File::Spec -> catfile ($TCC{'result_dir'}, $subset.'__ORF_fastas_done.txt');
+my $ORF_results = File::Spec -> catfile ($TCC{'result_dir'}, $subset.'__ORF_results.csv');
 
 
 my %already_done;
@@ -126,15 +148,19 @@ if ((-s $ORF_fastas_done) and ($TCC{'resume_calculation'})){
 #~ print Dumper %already_done;
 open (my $ORF_FASTAS_DONE, '>', $ORF_fastas_done) or die "could not write to '$ORF_fastas_done': $!\n";
 open (my $ORF_RESULTS, '>', $ORF_results) or die "could not write to '$ORF_results': $!\n";
+print $ORF_RESULTS "#Sample,Sequence,Reference,Reference_Set,Runtime,Search_Tool,E_Value,Score,BitScore\n";
 print $ORF_RESULTS $already_done_ORF_results if ( $already_done_ORF_results);
 
-my $collection=  File::Spec -> catfile ('/home/skaefer/tmp/termites/references/testi', '*AA*collection*');
-my @cfiles = glob $collection;
-if (@cfiles){	
-	print "removing previous collections...\n";
-	system(qq(rm $collection));
-} else {
-	print "no previous collections found that should be deleted\n";
+
+if ($TCC{'purge_data'}){
+	my $collection=  File::Spec -> catfile ($TCC{'reference_fastas'}, '*AA*collection*');
+	my @cfiles = glob $collection;
+	if (@cfiles){	
+		print "removing previous collections...\n";
+		system(qq(rm -f $collection));
+	} else {
+		print "no previous collections found that should be deleted\n";
+	}
 }
 
 my %collection_contents;#dim1: all/main_positive, dim2: search tool, dim3: main/company, = array of fasta paths
@@ -144,7 +170,8 @@ my %reference_descriptions;
 open (my $TTT_FH, '<', $TCC{'TTT'}) or die "could not read from '$TCC{'TTT'}': $!\n";
 while (my $line = <$TTT_FH>){
 	chomp $line;
-	
+	next if ($line =~ m/^#/);
+	next if ($line =~ m/^$/);
 	#~ print $line, "\n";
 	my @cols = split (',', $line);
 	next if ($cols[7] ne 'on');
@@ -155,6 +182,15 @@ while (my $line = <$TTT_FH>){
 	my $main_or_company = $1;
 	#~ my $main_or_company = 'main';
 	#~ print "$main_or_company\n";
+	
+	if ($subset eq 'preparation'){
+		$cols[5] = 'all';
+		if (($cols[4] > 1) and ($cols[0] ne 'company_unclustered')) {
+			$cols[6] = 'hmmer&blastp&mmseqs&jackhmmer&diamond';
+		} else {
+			$cols[6] = 'blastp&mmseqs&jackhmmer&diamond';
+		}
+	}
 	my @search_tools = split ('&', $cols[6]);
 	foreach my $search_tool (@search_tools){
 		die "$search_tool is not supported!\n" unless ($search_tool ~~ @supported_search_tools);
@@ -165,6 +201,7 @@ while (my $line = <$TTT_FH>){
 			$reference_file_path = File::Spec -> catfile ($TCC{'reference_fastas'}, $cols[2]);
 		}	
 		push (@{$collection_contents{$cols[5]}{$search_tool}{$main_or_company}{$cols[0]}}, $reference_file_path);
+		push (@{$collection_contents{'main_positive'}{$search_tool}{$main_or_company}{$cols[0]}}, $reference_file_path) if ($subset eq 'preparation');
 	}
 }
 
@@ -176,7 +213,7 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 	print '#' x 70,"\n";
 	print '#' x 70,"\n";
 	print '#' x 70,"\n";
-	print "searching in $crt_sample...\n";
+	print "searching in $crt_sample...\n" unless ($subset eq 'preparation');
 	$c++;
 	#~ last if ($c >= 7);
 	if ($already_done{$crt_sample}){
@@ -189,10 +226,11 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 	foreach my $search_tool (sort keys %{$collection_contents{'all'}}){
 	#~ foreach my $search_tool ('mmseqs'){
 		print '#' x 70,"\n";
-		print "\trunning $search_tool for main sequences...\n";
+		print "\trunning $search_tool for main sequences...\n" unless ($subset eq 'preparation');;
 		if ($search_tool eq 'hmmer'){
 			foreach my $reference (keys %{$collection_contents{'all'}{$search_tool}{'main'}}){
 				foreach my $reference_file (@{$collection_contents{'all'}{$search_tool}{'main'}{$reference}}){
+					next if ($reference_file =~ m/NA$/);
 					print "\tvs. $reference_file\n";
 					#~ print "\t\t\t###running hmmer...";
 					&run_hmmer(
@@ -210,8 +248,9 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 			}
 		} else {
 			my $crt_reference_fasta = File::Spec -> catfile ($TCC{'reference_fastas'}, $search_tool.'_AA_all_main.fasta');
-			print "\tjoining fastas to $crt_reference_fasta\n";
+			
 			unless (-s $crt_reference_fasta){ 
+				print "\tjoining fastas to $crt_reference_fasta\n";
 				&join_fastas(\%{$collection_contents{'all'}{$search_tool}{'main'}}, \$crt_reference_fasta);
 			}
 			if ($search_tool eq 'jackhmmer'){
@@ -273,8 +312,9 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 		if ($search_tool eq 'hmmer'){
 			foreach my $reference (keys %{$collection_contents{'all'}{$search_tool}{'company'}}){
 				foreach my $reference_file (@{$collection_contents{'all'}{$search_tool}{'company'}{$reference}}){
-					print "\tvs. $reference_file\n";
-					print "\t\t\t###running hmmer...";
+					next if ($reference_file =~ m/NA$/);
+					print "\tvs. $reference_file\n" unless ($subset eq 'preparation');
+					print "\t\t\t###running hmmer..." unless ($subset eq 'preparation');
 					&run_hmmer(
 					\$reference, #name of the reference file
 					\$reference_descriptions{$reference} , #description
@@ -290,8 +330,9 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 			}
 		} else {
 			my $crt_reference_fasta = File::Spec -> catfile ($TCC{'reference_fastas'}, $search_tool.'_AA_all_company.fasta');
-			print "\tjoining fastas to $crt_reference_fasta\n";
+			
 			unless (-s $crt_reference_fasta){ 
+				print "\tjoining fastas to $crt_reference_fasta\n";
 				&join_fastas(\%{$collection_contents{'all'}{$search_tool}{'company'}}, \$crt_reference_fasta);
 			}
 			if ($search_tool eq 'jackhmmer'){
@@ -351,13 +392,13 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 		
 		
 	}
-	if ($status_of_ORF_fasta{$crt_sample} eq 'clean'){
-		print "no hits found for main set. Will skip company sequence search for main_positive\n";
+	if (($status_of_ORF_fasta{$crt_sample} eq 'clean') and ($subset ne 'preparation')){
+		print "no hits found for main set. Will skip company sequence search for main_positive\n" unless ($subset eq 'preparation');
 		
 	} else {
 		foreach my $search_tool (keys %{$collection_contents{'main_positive'}}){
 			print '#' x 70,"\n";
-			print "\trunning $search_tool for company sequences in main_positive...\n";
+			print "\trunning $search_tool for company sequences in main_positive...\n" unless ($subset eq 'preparation');;
 			if ($search_tool eq 'hmmer'){
 				foreach my $reference (keys %{$collection_contents{'main_positive'}{$search_tool}{'company'}}){
 					foreach my $reference_file (@{$collection_contents{'main_positive'}{$search_tool}{'company'}{$reference}}){
@@ -378,8 +419,9 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 				}
 			} else {
 				my $crt_reference_fasta = File::Spec -> catfile ($TCC{'reference_fastas'}, $search_tool.'_AA_main_positive_company.fasta');
-				print "\tjoining fastas to $crt_reference_fasta\n";
+				
 				unless (-s $crt_reference_fasta){ 
+					print "\tjoining fastas to $crt_reference_fasta\n";
 					&join_fastas(\%{$collection_contents{'main_positive'}{$search_tool}{'company'}}, \$crt_reference_fasta);
 				}
 				if ($search_tool eq 'jackhmmer'){
@@ -488,7 +530,9 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 		close ($CRT_SUSPICIOUS_NT);
 
 
-
+		if ($subset eq 'preparation'){
+			next;
+		}
 
 
 
@@ -562,16 +606,25 @@ foreach my $crt_sample (@{$status_of_ORF_fasta{'order'}}){
 
 
 	} else {
-		print "no suspicious sequences in sample!\n";
+		print "no suspicious sequences in sample!\n" unless ($subset eq 'preparation');;
 	#	print $ORF_RESULTS "$crt_sample_ID,NA,NA,$TCC{'blastp_db_full'},NA,blastp_vs_full,NA,NA,NA\n";
 	}
 		#~ $status_of_ORF_fasta{$crt_sample} 
-	print $ORF_FASTAS_DONE "$crt_sample,$status_of_ORF_fasta{$crt_sample}\n";
+	print $ORF_FASTAS_DONE "$crt_sample,$status_of_ORF_fasta{$crt_sample}\n"  unless ($subset eq 'preparation');;
 		
 	
 }
-	
-	
+
+
+
+close ($ORF_FASTAS_DONE);
+close ($ORF_RESULTS);
+
+if ($subset eq 'preparation'){
+	print "preparation done!\n";
+	system(qq(rm -f $ORF_fastas_done $ORF_results));
+}
+
 print "TRAVIS Core completed!\n";	
 	
 
@@ -683,6 +736,7 @@ sub run_mmseqs{
 	} else {
 		print "\t'$mmseqs_db_path' already exists...\n";
 	}
+	return if ($subset eq 'preparation');
 	#~ my $blastp = $href_TCC -> {'blastp'};
 	my $ncpu = $href_TCC -> {'nCPU'};
 	#~ my $blastp_settings = $href_TCC -> {'blastp_settings'};
@@ -703,21 +757,21 @@ sub run_mmseqs{
 	&check_dir(\$crt_tmp_results);
 	my $mmseqs_result_db_path = File::Spec -> catdir ($mmseqs_results, $$sref_mmseqs_db_name.'_vs_'.$crt_basename.'.mmseqsdb');
 	if (-s $mmseqs_result_db_path){
-		(system(qq(rm $mmseqs_result_db_path))) unless ($href_TCC -> {'only_evaluate'});
+		(system(qq(rm -rf $mmseqs_result_db_path))) unless ($href_TCC -> {'only_evaluate'});
 	}
 	#~ #print "$crt_basename\n";
 	my $crt_result = File::Spec -> catfile ($mmseqs_results, $$sref_mmseqs_db_name.'_vs_'.$crt_basename.'.tsv');
 	#~ #	print "$crt_result\n";
 	my $t1  = time();
 	unless ( $href_TCC -> {'only_evaluate'}){
-		system(qq(rm -r $crt_tmp_results/*));
+		system(qq(rm -fr $crt_tmp_results/*  $mmseqs_result_db_path*));
 		system(qq($mmseqs search $mmseqs_query_db_path $mmseqs_db_path $mmseqs_result_db_path $crt_tmp_results --threads $ncpu $mmseqs_search_settings)) and die "Fatal: mmseqs failed for '$$sref_crt_sample': $!\n";
 		print "search done...converting DBs...\n";
 		system(qq($mmseqs convertalis $mmseqs_query_db_path $mmseqs_db_path $mmseqs_result_db_path $crt_result --threads $ncpu)) and die "Fatal: mmseqs conversion failed for '$$sref_crt_sample': $!\n";
 	}
 	my $t2 = time();
 	my $tdiff = $t2 - $t1;
-
+	system(qq(rm -rf $crt_tmp_results));
 	open (my $CRT_RESULT, '<', $crt_result) or die "could not read from '$crt_result': $!\n";
 	while (my $line = <$CRT_RESULT>){
 		chomp $line;
@@ -772,7 +826,7 @@ sub run_diamond{
 	} else {
 		print "\t'$diamond_db_path' already exists...\n";
 	}
-	
+	return if ($subset eq 'preparation');
 	my $ncpu = $href_TCC -> {'nCPU'};
 	my $diamond_settings = '--fast';
 	$diamond_settings = $href_TCC -> {'diamond_settings'} if ($href_TCC -> {'diamond_settings'});
@@ -855,6 +909,7 @@ sub run_blastp{
 	} else {
 		print "\t'$blast_db_path' already exists...\n";
 	}
+	return if ($subset eq 'preparation');
 	my $blastp = $href_TCC -> {'blastp'};
 	my $ncpu = $href_TCC -> {'nCPU'};
 	my $blastp_settings = '-evalue 10';
@@ -917,7 +972,7 @@ sub run_jackhmmer{
 		print "$$sref_fasta does not exist or is empty...no need to run a search\n";
 		return;
 	}
-	
+	return if ($subset eq 'preparation');
 	my $jackhmmer_results = File::Spec -> catdir ($href_TCC -> {'result_dir'}, 'jackhmmer_results');
 	&check_dir(\$jackhmmer_results);
 	my $jackhmmer = $href_TCC -> {'jackhmmer'};
@@ -989,6 +1044,7 @@ sub run_hmmer{
 	} else {
 		print "\t'$hmm_path' already exists...\n";
 	}
+	return if ($subset eq 'preparation');
 	my $hmmsearch = $href_TCC -> {'hmmsearch'};
 	my $ncpu = $href_TCC -> {'nCPU'};
 	my $hmmsearch_settings = '-E 10';
@@ -1093,6 +1149,10 @@ sub get_sample_ORF_data {
 		print "reading fasta: '$$sref_in'...\n";
 		open (my $FH_IN, '<',$$sref_in) or die "could not read from '$$sref_in': $!\n";
 		open (my $FH_OUT, '>',$$sref_out) or die "could not write to '$$sref_out': $!\n";
+
+
+
+		#####here for loops
 		my $crt_header;
 		my $crt_seq;
 		while (my $line = <$FH_IN>){

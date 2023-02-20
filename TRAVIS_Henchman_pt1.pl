@@ -6,7 +6,7 @@ use File::Path qw(make_path);
 use File::Basename;
 use File::Spec;
 use Data::Dumper;
-
+no warnings 'experimental::smartmatch';
 
 unless (@ARGV){
 	die "usage: perl TRAVIS_Henchman_pt1.pl <TRAVIS_control_center.csv>\n";
@@ -16,7 +16,7 @@ my $TCC_file = shift @ARGV;
 
 print '#' x 70,"\n";
 print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Henchman pt1 v20221029\n";
+print "\t\t\tThis is TRAVIS Henchman pt1 v20230214\n";
 print '#' x 70,"\n";
 print '#' x 70,"\n";
 print "\n";
@@ -183,7 +183,7 @@ while (my $line = <$REFLIB>){
 		}
 		unless (@crt_all_NT_ACCs){
 			push(@failed, $crt_all_NT_ACCs);
-			print "fuckit on crt_all_NT_ACCs: '$crt_all_NT_ACCs' in 177!\n";
+			##print "fuckit on crt_all_NT_ACCs: '$crt_all_NT_ACCs' in 177!\n";
 		}
 	} elsif ($crt_all_NT_ACCs eq 'NA'){
 		print "no other sequences? sure?\n";
@@ -260,7 +260,7 @@ while (my $line = <$REFLIB>){
 
 		#..and into all split groups:
 		foreach my $split_by_col (@split_by_cols){
-			$sequences{'NT'}{$main_or_company}{$header_elements[$split_by_col].'_'.$cols[$split_by_col]} .= ">$$TRAVIS_TMP_ACC\n$crt_sequence\n";
+			$sequences{'NT'}{$main_or_company}{$header_elements[$split_by_col].'_'.$cols[$split_by_col]} .= ">$TRAVIS_TMP_ACC\n$crt_sequence\n";
 		}
 		if (@crt_PIDs) {
 			push (@collected_PIDs, @crt_PIDs) ; #actually collect 

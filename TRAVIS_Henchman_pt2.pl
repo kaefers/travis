@@ -5,6 +5,7 @@ use File::Path qw(make_path);
 use File::Basename;
 use File::Spec;
 use Data::Dumper;
+no warnings 'experimental::smartmatch';
 
 
 unless (@ARGV){
@@ -15,7 +16,7 @@ my $TCC_file = shift @ARGV;
 
 print '#' x 70,"\n";
 print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Henchman pt2 v20221029\n";
+print "\t\t\tThis is TRAVIS Henchman pt2 v20230216\n";
 print '#' x 70,"\n";
 print '#' x 70,"\n";
 print "\n";
@@ -27,19 +28,21 @@ my %TCC; #contains configuration parameters from $TCC_file
 );
 print "connected to TRAVIS Control Center\n";
 ###
-my $TTT_content;
+my $TTT_content = "#Cluster,Cluster_Description,Cluster_Fasta,Cluster_Aln,Cluster_Members,Search_In,Search_Tools,Status\n";
 
 
 print "reading $TCC{'TTT'}...\n";
 open (my $TTT, '<', $TCC{'TTT'}) or die "could not read from '$TCC{'TTT'}': $!\n";
 while (my $line = <$TTT>){
 	chomp $line;
+	next if ($line =~ m/^#/);
+	next if ($line =~ m/^$/);	
+	$TTT_content .= $line."\n";
 	my @cols = split(',', $line);
-	print "$line\n";
+	#print "$line\n";
+	next if ($cols[3] eq 'NA');
 	my $crt_fasta = File::Spec -> catfile ($TCC{'reference_fastas'},$cols[2]);
 	my $crt_aln_fasta = File::Spec -> catfile ($TCC{'reference_fastas'}, $cols[3]);
-	$TTT_content .= $line."\n";
-	next if ($crt_aln_fasta eq 'NA');
 	print "aligning $crt_fasta...\n";
 	if ($TCC{'mafft_binaries'}){
 		system(qq(export MAFFT_BINARIES="$TCC{'mafft_binaries'}";$TCC{'mafft'} $TCC{'mafft_settings'} --thread $TCC{'nCPU'} $crt_fasta > $crt_aln_fasta)) ;
@@ -81,6 +84,7 @@ my $crt_header; #stores the current sequence header
 my %clusters; #stores sequences: key = $crt_cluster_name, value = concatenated fasta 
 my %cluster_descriptions; #stores all information about the protein that is contained in the header by $crt_cluster_name
 my %cluster_sizes; #stores the number of sequences per cluster
+system(qq(rm -rf $crt_DB_tempdir));
 
 ###read the clustered file:
 while (my $line = <$CLUSTERED>){
@@ -179,7 +183,7 @@ print "$small_clusters cluster(s) with less or equal than $TCC{'minimal_cluster_
 
 print "re-running TRAVIS Henchman might change reference fasta composition and names! deleting all previously calculated reference databases...\n";
 my $reference_databases_dir = File::Spec  -> catdir ($TCC{'result_dir'});
-system (qq(rm $reference_databases_dir/*.blastdb* $reference_databases_dir/*.hmm $reference_databases_dir/*.mmseqsdb* $reference_databases_dir/*.blastdb*)) ;
+system (qq(rm -f $reference_databases_dir/*.blastdb* $reference_databases_dir/*.hmm $reference_databases_dir/*.mmseqsdb* $reference_databases_dir/*.blastdb*)) ;
 
 
 

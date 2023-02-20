@@ -5,6 +5,7 @@ use File::Path qw(make_path);
 use File::Basename;
 use File::Spec;
 use Data::Dumper;
+no warnings 'experimental::smartmatch';
 
 
 unless (@ARGV){
@@ -12,6 +13,24 @@ unless (@ARGV){
 }
 my $TCC_file = shift @ARGV;
 
+print '#' x 70,"\n";
+print '#' x 70,"\n";
+print "\t\t\tThis is TRAVIS Scavenger v20230217\n";
+print '#' x 70,"\n";
+print '#' x 70,"\n";
+
+my $subset;
+if (@ARGV){
+	$subset = shift @ARGV;
+	if ($subset eq 'preparation'){ 
+		die "preparation does not work with TRAVIS Scavenger\n";
+	} else {
+		print "will only scavenge samples that match $subset\n";
+	} 
+} else {
+	print "will scavenge all samples\n";
+	$subset = 'all';
+}
 
 
 my $partially; #give a value if you want to run only the first entries of each file
@@ -30,11 +49,6 @@ my %rainbow  = (
 my $color_resolution = 5; #rainbow scale will be applied to the sample ORF in chunks of this percentage
 my $color_sensitivity= 0.00001; #is the blast-evalue threshold for the matches
 
-print '#' x 70,"\n";
-print '#' x 70,"\n";
-print "\t\t\tThis is TRAVIS Scavenger v20221029\n";
-print '#' x 70,"\n";
-print '#' x 70,"\n";
 my @supported_search_tools = ('blastp', 'hmmer', 'jackhmmer', 'mmseqs', 'blastp_vs_full', 'diamond', 'diamond_vs_full', 'mmseqs_vs_full'); #only entries with the supportet search tools will be evaluated
 
 ###reading TRAVIS Control Center
@@ -47,6 +61,9 @@ print "connected to TRAVIS Control Center\n";
 &check_dir(\$TCC{'reference_gbx'}); #genebank xmls will be stored here locally
 unless ($TCC{'max_references'}){
 	$TCC{'max_references'} = 50;
+}
+unless ($TCC{'scavenger_scale'}){
+	$TCC{'scavenger_scale'} = 1;
 }
 
 my $sample_library = $TCC{'sample_library'};
@@ -139,19 +156,43 @@ if (-s $preparsed_reference_library){
 }
 
 (my $TTA_translations_file = $TCC{'reference_library'}) =~ s/\.csv$/_TTA_translations.csv/;
-my $ORF_results_to_translate = File::Spec -> catfile ($TCC{'result_dir'},  'ORF_results.csv');
-my $ORF_results = File::Spec -> catfile ($TCC{'result_dir'},  'ORF_results_retranslated.csv');
+my $ORF_results_to_translate = File::Spec -> catfile ($TCC{'result_dir'}, $subset.'__ORF_results.csv');
+my $ORF_results = File::Spec -> catfile ($TCC{'result_dir'},  $subset.'__ORF_results_retranslated.csv');
 
-my $ORF_tmp;
-&slurp_file(\$ORF_results_to_translate, \$ORF_tmp);
-open (my $TTA_T, '<', $TTA_translations_file) or die "could not read from '$TTA_translations_file': $!\n";
-while (my $line = <$TTA_T>){
-	chomp $line;
-	my @cols = split (',', $line);
-	$ORF_tmp =~ s/$cols[0]/$cols[1]/g;
+my $matching_ORFs_AA_fasta = File::Spec -> catfile ($TCC{'result_dir'},  $subset.'__matching_ORFs_AA.fasta');
+open (my $MATCHINGORFSAA, '>', $matching_ORFs_AA_fasta) or die "could not write to '$matching_ORFs_AA_fasta': $!\n";
+
+my $matching_ORFs_NT_fasta = File::Spec -> catfile ($TCC{'result_dir'},  $subset.'__matching_ORFs_NT.fasta');
+open (my $MATCHINGORFSNT, '>', $matching_ORFs_NT_fasta) or die "could not write to '$matching_ORFs_NT_fasta': $!\n";
+
+
+if (-s $TTA_translations_file){
+	my $ORF_tmp;
+	&slurp_file(\$ORF_results_to_translate, \$ORF_tmp);
+	open (my $TTA_T, '<', $TTA_translations_file) or die "could not read from '$TTA_translations_file': $!\n";
+	while (my $line = <$TTA_T>){
+		chomp $line;
+		my @cols = split (',', $line);
+		$ORF_tmp =~ s/$cols[0]/$cols[1]/g;
+	}
+	close($TTA_T);
+	&write_file(\$ORF_results, \$ORF_tmp);
+} else {
+	$ORF_results = File::Spec -> catfile ($TCC{'result_dir'},  $subset.'__ORF_results.csv');
 }
-close($TTA_T);
-&write_file(\$ORF_results, \$ORF_tmp);
+
+
+
+#my $ORF_tmp;
+#&slurp_file(\$ORF_results_to_translate, \$ORF_tmp);
+#open (my $TTA_T, '<', $TTA_translations_file) or die "could not read from '$TTA_translations_file': $!\n";
+#while (my $line = <$TTA_T>){
+#	chomp $line;
+#	my @cols = split (',', $line);
+#	$ORF_tmp =~ s/$cols[0]/$cols[1]/g;
+#}
+#close($TTA_T);
+#&write_file(\$ORF_results, \$ORF_tmp);
 
 
 
@@ -214,7 +255,7 @@ while (my $line = <$ORF_RESULTS>){
 		$infection_status{$cols[0]} = 'clean' unless ($infection_status{$cols[0]});
 	}
 	if ($infection_status{$cols[0]} eq 'positive'){
-		push (@infected, $cols[0]) unless ($cols[0] ~~@infected);
+		push (@infected, $cols[0]) unless ($cols[0] ~~ @infected);
 	}
 }
 
@@ -238,6 +279,7 @@ if (@infected){
 		my %ORF_related_to; #collects all related PIDs for the suspicious ORFs
 		my %ORF_relatedness_to_PID_identified_by_method; #1st dim: PID, 2nd dim: ORF ID, value: array listing methods
 		my %suspicious_ORFs_AA; #collects the AA sequences of the ORFs of the sample
+		my %suspicious_ORFs_NT; #collects the NT sequences of the ORFs of the sample
 		my %reference_ORFs_AA; #collects the AA sequences of the ORFs of the related references
 		my %ORF_needs_a_rainbow; #stores combinations of sample and reference ORFs that will get a coloration
 		my %found_by; #stores the information which search-tool/method identified the sample ORF
@@ -287,14 +329,25 @@ if (@infected){
 			print "\t\t$sequence_header\n";
 			my $crt_full_seq = $sequence_header.','.$ORF_data{'>'.$sequence_header};
 			foreach my $crt_ORF (sort keys %{$ORF_data_by_sequence{$sequence_header}}){
-				my @cols = split (',', $ORF_data_by_sequence{$sequence_header}{$crt_ORF});
-				$suspicious_ORFs_AA{$crt_ORF} = $cols[7];
+				my @seqcols = split (',', $ORF_data_by_sequence{$sequence_header}{$crt_ORF});
+				#print "\tseqhead: $sequence_header\n\tORF: $crt_ORF\n";
+				$crt_ORF =~ m/(.+)_(ORF_\d+)/;
+				my $seq_pt1 = $1;
+				my $seq_pt2 = $2;
+				$suspicious_ORFs_AA{$crt_ORF} = $seqcols[7];
+				$suspicious_ORFs_NT{$crt_ORF} = $seqcols[6];
+				print $MATCHINGORFSAA ">$sample_ID\__$crt_ORF\n$seqcols[7]\n" if ($suspicious_sequences{$sample_ID}{$seq_pt1}{$seq_pt2});
+				print $MATCHINGORFSNT ">$sample_ID\__$crt_ORF\n$seqcols[6]\n" if ($suspicious_sequences{$sample_ID}{$seq_pt1}{$seq_pt2});
+
 			}
 		}
 		
 		
 		
-		
+		if ($TCC{'no_rainbows'}){
+			print "you chose not to create plots\n";
+			next;
+		};
 		###loop through the TC results:
 		foreach my $sequence_header (sort keys %{$suspicious_sequences{$sample_ID}}){
 			
@@ -542,6 +595,7 @@ if (@infected){
 		}
 		my $sequence_organization_details_file = File::Spec -> catfile ($TCC{'result_dir'}, $sample_ID.'_sequence_organization_details.csv'); 
 		open (my $SEQUENCE_ORGANIZATION_DETAILS_FH, '>',  $sequence_organization_details_file) or die "could not write to '$sequence_organization_details_file': $!\n";
+		print $SEQUENCE_ORGANIZATION_DETAILS_FH "#Sample_ID,Sequence,ORF,Potential_Annotation,Found_By_Search_Tool,NT_Seq,AA_Seq\n";
 		###########creating the plots
 		my $number_of_seqs; #will count the number of sequences in that plot
 		my $max_length = 0; #the longest sequence will be stored to determine the needed width of the SVG
@@ -560,7 +614,8 @@ if (@infected){
 		
 		$SVG_content .= qq(<text x="100" y="40" font-weight="bold" font-size="2em" >$sample_ID<title>$crt_sample_info\n</title></text>\n); #adding the name of the group to the plot
 		
-		
+		my $xmod;
+		my $wmod;
 		print "######################################################################\ncreating sequence organization plot for $sample_ID\n";
 		foreach my $group (sort keys %sequences){
 			(my $group_leader = $group) =~s/^[^\|]+\|{3}//;
@@ -587,11 +642,13 @@ if (@infected){
 						my $yoffset;
 						if ($sequence_type eq 'NT'){ #if the sequence is NT, the sequence will be represented as a blue bar
 							$yoffset= $row_offset + 10;
-							$SVG_content .= qq(<rect x="$xstart" y="$yoffset"  width="$width" height="15" style="fill:darkblue"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}\n</title></rect>\n);
+							$xmod = $xstart / $TCC{'scavenger_scale'} +100;
+							$wmod = $width / $TCC{'scavenger_scale'};
+							$SVG_content .= qq(<rect x="$xmod" y="$yoffset"  width="$wmod" height="15" style="fill:darkblue"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}\n</title></rect>\n);
 							
 							my $textyoffset = $yoffset - 5;
-							$SVG_content .= qq(<text x="$xstart" y="$textyoffset" >$sequence_description</text>\n);
-							$max_length = $limits[1] if ($limits[1] > $max_length); #to find out the length of the longest sequence for setting witdh limit of the plot
+							$SVG_content .= qq(<text x="$xmod" y="$textyoffset" >$sequence_description ($width NT)</text>\n);
+							$max_length = $limits[1] / $TCC{'scavenger_scale'}  if (($limits[1]/$TCC{'scavenger_scale'}) > $max_length); #to find out the length of the longest sequence for setting witdh limit of the plot
 						} else {#this applies to all not NT.....i. e. ORFS
 							#most important step: try to puzzle the ORFs into the plot without them overlapping and also not wasting space by putting each ORF in a single row
 							my $does_not_fit ; #will contain the information whether the ORF fits in the current row
@@ -638,15 +695,17 @@ if (@infected){
 							} else {
 								$color = 'lightgrey';
 							}
-							
+							$xmod = $xstart / $TCC{'scavenger_scale'} +100;
 							my $textyoffset = $yoffset - 5;
-							$SVG_content .= qq(<text x="$xstart" y="$textyoffset" >$sequence_description</text>\n);
+							$SVG_content .= qq(<text x="$xmod" y="$textyoffset" >$sequence_description</text>\n);
 							
 							
 							if ( $sequence =~ m/$group_leader/){
 								#~ print "\t\tpushing $sequence\_$sequence_description to group leader ORFs\n";
 								if ($ORF_needs_a_rainbow{$sequence.'_'.$sequence_description}){
-									$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:black"></rect>\n);
+									$xmod = $xstart / $TCC{'scavenger_scale'} +100;
+									$wmod = $width / $TCC{'scavenger_scale'};
+									$SVG_content .= qq(<rect x="$xmod" y="$yoffset" width="$wmod" height="10" style="fill:black"></rect>\n);
 									my $crt_length = length($suspicious_ORFs_AA{$sequence.'_'.$sequence_description}) * 3;
 									my @color_block_ranges = 'NIL';
 									my @colors = 'NIL';
@@ -681,10 +740,14 @@ if (@infected){
 										my $color_block_width = $color_block_range[1] - $color_block_range[0] + 1;
 										$color_block_width-- if ($block_counter == scalar @{$color_block_order{$sequence.'_'.$sequence_description}});
 										my $color_block_yoffset = $yoffset + 1;
-										$SVG_content .= qq(<rect x="$color_block_xstart" y="$color_block_yoffset" width="$color_block_width" height="8" style="fill:white"></rect>\n);
-										$SVG_content .= qq(<rect x="$color_block_xstart" y="$color_block_yoffset" width="$color_block_width" height="8" style="fill:$used_color_blocks{$crt_color_block}"></rect>\n);
+										$xmod = $color_block_xstart / $TCC{'scavenger_scale'} +100;
+										$wmod = $color_block_width / $TCC{'scavenger_scale'};
+										$SVG_content .= qq(<rect x="$xmod" y="$color_block_yoffset" width="$wmod" height="8" style="fill:white"></rect>\n);
+										$SVG_content .= qq(<rect x="$xmod" y="$color_block_yoffset" width="$wmod" height="8" style="fill:$used_color_blocks{$crt_color_block}"></rect>\n);
 									} 
-									$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:white; opacity:0"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
+									$xmod = $xstart / $TCC{'scavenger_scale'} +100;
+									$wmod = $width / $TCC{'scavenger_scale'};
+									$SVG_content .= qq(<rect x="$xmod" y="$yoffset" width="$wmod" height="10" style="fill:white; opacity:0"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
 									my @mod_seq_annotations = split ('found by:',$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]});
 									my $mod_seq_annotation;
 									if ($mod_seq_annotations[1]){
@@ -702,10 +765,12 @@ if (@infected){
 										$mod_seq_annotations[0] =~ s/^&|&$//g;
 										$mod_seq_annotation = "$mod_seq_annotations[0],NA";
 									}
-									print $SEQUENCE_ORGANIZATION_DETAILS_FH "$sample_ID,$sequence,$sequence_description,$mod_seq_annotation\n";
+									print $SEQUENCE_ORGANIZATION_DETAILS_FH "$sample_ID,$sequence,$sequence_description,$mod_seq_annotation,$suspicious_ORFs_NT{$sequence.'_'.$sequence_description},$suspicious_ORFs_AA{$sequence.'_'.$sequence_description}\n";
 
 								}else {
-										$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:$color"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
+									$xmod = $xstart / $TCC{'scavenger_scale'} +100;
+									$wmod = $width / $TCC{'scavenger_scale'};
+									$SVG_content .= qq(<rect x="$xmod" y="$yoffset" width="$wmod" height="10" style="fill:$color"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
 									my @mod_seq_annotations = split ('found by:',$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]});
 									my $mod_seq_annotation;
 									if ($mod_seq_annotations[1]){
@@ -723,7 +788,7 @@ if (@infected){
 										$mod_seq_annotations[0] =~ s/^&|&$//g;
 										$mod_seq_annotation = "$mod_seq_annotations[0],NA";
 									}
-									print $SEQUENCE_ORGANIZATION_DETAILS_FH "$sample_ID,$sequence,$sequence_description,$mod_seq_annotation\n";
+									print $SEQUENCE_ORGANIZATION_DETAILS_FH "$sample_ID,$sequence,$sequence_description,$mod_seq_annotation,$suspicious_ORFs_NT{$sequence.'_'.$sequence_description},$suspicious_ORFs_AA{$sequence.'_'.$sequence_description}\n"; ###here
 									}
 							} else {
 								if ($ORF_needs_a_rainbow{$group_leader.'_rainbow_'.$sequence.'_'.$sequence_type}){
@@ -745,12 +810,12 @@ if (@infected){
 										#system(qq($TCC{'makeblastdb'} -in rainbow_db_tmp.fasta -dbtype prot -out rainbow_db -title rainbow_db > /dev/null )) and print "Fatal: could not build blast database from 'rainbow_db of $sequence'\: $!\n";
 										system(qq($TCC{'makeblastdb'} -in rainbow_db_tmp.fasta -dbtype prot -out rainbow_db -title rainbow_db > /dev/null )) and system(qq(cat rainbow_db_tmp.fasta));
 										system(qq($TCC{'blastp'} -query rainbow_qry_tmp.fasta -out rainbow_results.csv -db rainbow_db -num_threads 1 -outfmt \"10 qseqid qlen slen length stitle pident nident qcovhsp qstart qend sstart send qseq sseq evalue score bitscore sacc\" > /dev/null )) and print "Fatal: blast failed for 'rainbow_qry.tmp of $sequence': $!\n";
-										if (-s 'rainbow_results_sorted.csv') {
-											system(qq(rm rainbow_results_sorted.csv));
-										}
+										
 										&sort_CSV(\'rainbow_results.csv', \'3', \'true');
 										if (-s 'rainbow_results_sorted.csv'){
-											$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:$color"></rect>\n);
+											$xmod = $xstart / $TCC{'scavenger_scale'} +100;
+											$wmod = $width / $TCC{'scavenger_scale'};
+											$SVG_content .= qq(<rect x="$xmod" y="$yoffset" width="$wmod" height="10" style="fill:$color"></rect>\n);
 											#~ print "\t\t\treading BLAST output...\n";
 											open (my $BLAST_RESULTS, '<', 'rainbow_results_sorted.csv') or die "could not read from 'rainbow_results_sorted.csv': $!\n";
 											my $crt_seq = 'Not initialized';
@@ -829,22 +894,28 @@ if (@infected){
 												foreach my $position (sort {$a <=> $b} keys %color_at_position){
 													if ($crt_color){
 														if ($crt_color ne $color_at_position{$position}){
-															$SVG_content .= qq(<rect x="$color_block_xstart" y="$color_block_yoffset" width="$position_counter" height="8" style="fill:white"></rect>\n);
-															$SVG_content .= qq(<rect x="$color_block_xstart" y="$color_block_yoffset" width="$position_counter" height="8" style="fill:$crt_color; opacity:$opacity"></rect>\n);
+															$xmod = $color_block_xstart / $TCC{'scavenger_scale'} +100;
+															$wmod = $position_counter / $TCC{'scavenger_scale'};
+															$SVG_content .= qq(<rect x="$xmod" y="$color_block_yoffset" width="$wmod" height="8" style="fill:white"></rect>\n);
+															$SVG_content .= qq(<rect x="$xmod" y="$color_block_yoffset" width="$wmod" height="8" style="fill:$crt_color; opacity:$opacity"></rect>\n);
 															$color_block_xstart = $position + $hit_plot_start - $sstart;
 															undef ($position_counter);
 															$crt_color = $color_at_position{$position};
 														}
 													} else {
+														
 														$color_block_xstart = $position + $hit_plot_start - $sstart;
 														$crt_color = $color_at_position{$position};
 													}
 													$position_counter++;
 												}
-												
-												$SVG_content .= qq(<rect x="$color_block_xstart" y="$color_block_yoffset" width="$position_counter" height="8" style="fill:white"></rect>\n);
-												$SVG_content .= qq(<rect x="$color_block_xstart" y="$color_block_yoffset" width="$position_counter" height="8" style="fill:$crt_color; opacity:$opacity"></rect>\n);
-												$SVG_content .= qq(<rect x="$hit_plot_start" y="$yoffset" width="$hit_plot_width" height="10" style="fill:pink; opacity:0"><title>$cols[5]% identity from $cols[10] to $cols[11] vs. $1 from $cols[8] to $cols[9]\n</title></rect>\n);
+												$xmod = $color_block_xstart / $TCC{'scavenger_scale'} +100;
+												$wmod = $position_counter / $TCC{'scavenger_scale'};
+												$SVG_content .= qq(<rect x="$xmod" y="$color_block_yoffset" width="$wmod" height="8" style="fill:white"></rect>\n);
+												$SVG_content .= qq(<rect x="$xmod" y="$color_block_yoffset" width="$wmod" height="8" style="fill:$crt_color; opacity:$opacity"></rect>\n);
+												my $hsmod = $hit_plot_start / $TCC{'scavenger_scale'} +100;
+												my $hwmod = $hit_plot_width / $TCC{'scavenger_scale'};
+												$SVG_content .= qq(<rect x="$hsmod" y="$yoffset" width="$hwmod" height="10" style="fill:pink; opacity:0"><title>$cols[5]% identity from $cols[10] to $cols[11] vs. $1 from $cols[8] to $cols[9]\n</title></rect>\n);
 
 	
 											}
@@ -852,15 +923,23 @@ if (@infected){
 											
 										} else {
 											#print "#####could not find blast results for $associated_ORF!\n";
-											$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:$color"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
+											$xmod = $xstart / $TCC{'scavenger_scale'} +100;
+											$wmod = $width / $TCC{'scavenger_scale'};
+											$SVG_content .= qq(<rect x="$xmod" y="$yoffset" width="$wmod" height="10" style="fill:$color"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
 										}
+
+										system(qq(rm -rf rainbow*));
 										
 									} else {
+										$xmod = $xstart / $TCC{'scavenger_scale'} +100;
+										$wmod = $width / $TCC{'scavenger_scale'};
 										print "#####could not find stuff for $associated_ORF!\n";
-										$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:$color"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
+										$SVG_content .= qq(<rect x="$xmod" y="$yoffset" width="$wmod" height="10" style="fill:$color"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
 									}
 								} else {
-									$SVG_content .= qq(<rect x="$xstart" y="$yoffset" width="$width" height="10" style="fill:$color"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
+									$xmod = $xstart / $TCC{'scavenger_scale'} +100;
+									$wmod = $width / $TCC{'scavenger_scale'};
+									$SVG_content .= qq(<rect x="$xmod" y="$yoffset" width="$wmod" height="10" style="fill:$color"><title>$sequences{$group}{$sequence}{$sequence_type}{$sequence_description}{$start_end_orientation[0]}</title></rect>\n);
 								}
 							}
 						}
@@ -873,8 +952,8 @@ if (@infected){
 			$row_offset += 50;
 			
 			undef %color_blocks;  
-			undef  %color_blocks_reverse; 
-			undef  %color_block_order; 
+			undef %color_blocks_reverse; 
+			undef %color_block_order; 
 			undef %ORF_plot_orientation;
 			
 			
@@ -897,6 +976,8 @@ if (@infected){
 		
 		my $rainbow_details_file = File::Spec -> catfile ($TCC{'result_dir'}, $sample_ID.'_rainbow_details.csv'); 
 		open (my $RAINBOW_DETAILS_FH, '>', $rainbow_details_file) or die "could not write to '$rainbow_details_file': $!\n";
+
+		print $RAINBOW_DETAILS_FH "qseqid,qlen,slen,length,stitle,pident,nident,qcovhsp,qstart,qend,sstart,send,qseq,sseq,evalue,score,bitscore,sacc\n";
 		print $RAINBOW_DETAILS_FH $rainbow_details, "\n";
 		close ($RAINBOW_DETAILS_FH);
 		close ($SEQUENCE_ORGANIZATION_DETAILS_FH);
@@ -925,7 +1006,8 @@ foreach my $sample (keys %infection_status){
 	print $EVALUATED_SAMPLE_LIBRARY "$joined_info\n";
 	
 }
-
+close($MATCHINGORFSAA);
+close($MATCHINGORFSNT);
 print "TRAVIS Scavenger completed\n";
 ###subroutines
 
@@ -1230,6 +1312,7 @@ sub get_times {
 	open (my $OUT, '>', $out) or die "could not write to'$out': $!\n";
 	while (my $line = <$DONE>){
 		chomp $line;
+		next if ($line =~ m/^#/);
 		my @cols = split (',', $line);
 		next if ($times_by_sample{$cols[0].$cols[3].$cols[5]});
 		next if ($cols[4] eq 'NA');
