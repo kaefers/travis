@@ -146,14 +146,14 @@ absoulte path to them. This seemed to work well on all occasions so far.
 
 ```
 cd ..
-perl TRAVIS_Henchman_pt1 test_data/reo_test_TCC.csv
+perl TRAVIS_Henchman_pt1.pl test_data/reo_test_TCC.csv
 ```
 
 This should have downloaded and sorted all reference data you specified in the reference library.
 To cluster, split and align them, you need to run pt 2:
 
 ```
-perl TRAVIS_Henchman_pt2 test_data/reo_test_TCC.csv
+perl TRAVIS_Henchman_pt2.pl test_data/reo_test_TCC.csv
 ```
 
 After that you can check the intended searches in the Troubling TRAVIS Table (TTT)
@@ -163,9 +163,25 @@ You can e.g.:
 * change combination of search tools on certain groups/clusters
 * add other proteins/groups/clusters to the ’main’ pool
 
+After that, you have two choices. Either run all searches in sequence by calling
 
+```
+perl TRAVIS_Core.pl test_data/reo_test_TCC.csv
+```
 
+or have TRAVIS Core deal with a sample subset (each sample or sample groups) in parallel. This can be especially useful on a HPC with annoying time limitations.
+For that, you should prepare all reference databases beforehand as the individual searches use the same reference files. 
 
+```
+perl TRAVIS_Core.pl test_data/reo_test_TCC.csv preparation
+```
+Afterwards you can call TRAVIS Core with an additional argument to specify the subset.
+
+```
+perl TRAVIS_Core.pl test_data/reo_test_TCC.csv <subset pattern>
+```
+The subset pattern will make use the whole line of the sample library. If a line matches this subset pattern, it will 
+start searching in the respective sample. E.g. if the subset pattern is 'Drosophila', it will run 'Drosophila melanogaster', 'Drosophila pseudoobscura', and 'Drosophila simulans' in sequential order. Please note, that this is case sensitive. 
 
 ## Options
 These are the options that can be set in the TCC. Have a look at reo_test_TCC.csv in test_data/ for examples.
@@ -263,6 +279,9 @@ Specifies how many processors can be used.
 #### max_references
 Limits how many references will be plotted per matching ORF in the Scavenger output.
 
+### scavenger_scale
+If sequences are very long, the Scavenger plots can become quite confusing. You can reduce the lengths of
+the bars by specifying a divisor here. E.g. '10' will scale down the lengths to 10%, '2' will scale it to 50%.
 
 #### HMMER3
 Specifies paths and settings of HMMER3.
