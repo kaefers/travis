@@ -275,11 +275,10 @@ Specifies the path to the Troubling TRAVIS Table.
 #### nCPU
 Specifies how many processors can be used.
 
-
 #### max_references
 Limits how many references will be plotted per matching ORF in the Scavenger output.
 
-### scavenger_scale
+#### scavenger_scale
 If sequences are very long, the Scavenger plots can become quite confusing. You can reduce the lengths of
 the bars by specifying a divisor here. E.g. '10' will scale down the lengths to 10%, '2' will scale it to 50%.
 
