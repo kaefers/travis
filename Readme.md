@@ -282,6 +282,9 @@ Limits how many references will be plotted per matching ORF in the Scavenger out
 If sequences are very long, the Scavenger plots can become quite confusing. You can reduce the lengths of
 the bars by specifying a divisor here. E.g. '10' will scale down the lengths to 10%, '2' will scale it to 50%.
 
+#### no_rainbows
+If you enter a value for this entry, there will be no graphical output.
+
 #### HMMER3
 Specifies paths and settings of HMMER3.
 
