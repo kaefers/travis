@@ -24,7 +24,7 @@ This guide is not comprehensive for all functionality as more features will be i
 in the future. It assumes that you have basic knowlege about the use of the Unix command
 line.
 
-TRAVIS is still in beta and probably contains bugs. Feel free to use it at own risk
+TRAVIS is still in beta and probably contains bugs. More details and exemplary use can be found [here](https://nbn-resolving.org/urn:nbn:de:hbz:5n-56561). Feel free to use it at own risk
 and please report any bugs to me (simonkaefer@outlook.com). 
 
 ## Concept and Workflow
